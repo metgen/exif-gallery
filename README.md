@@ -211,3 +211,4 @@ FAQ
 
 #### Why do my images appear flipped/rotated incorrectly?
 > For a number of reasons, only EXIF orientations: 1, 3, 6, and 8 are supported. Orientations 2, 4, 5, and 7—which make use of mirroring—are not supported.
+
