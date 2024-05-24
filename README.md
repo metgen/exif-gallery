@@ -1,4 +1,4 @@
-# 📷 `EXIF` Галлерея
+# 📷 `EXIF` галерея
 Это галлерея для момих мобильных фотографий
 
 Сайт проекта - [gallery.metalnikovg.ru](https://gallery.metalnikovg.ru)
@@ -8,4 +8,4 @@
 - В качестве хостинга используется [Vercel](https://vercel.com)
 - Фотографии хранятся на [Cloudflare R2](https://developers.cloudflare.com/r2)
 - База даных [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres/quickstart#create-a-postgres-database)
-- Проект использует кодовую базу [sambecker/exif-photo-blog](https://github.com/sambecker/exif-photo-blog)
+- Проект использует кодовую базу из репозитория [sambecker/exif-photo-blog](https://github.com/sambecker/exif-photo-blog)
