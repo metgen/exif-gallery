@@ -5,13 +5,19 @@ import { makeUrlAbsolute, shortenUrl } from '@/utility/url';
 // HARD-CODED GLOBAL CONFIGURATION
 
 export const SHOULD_PREFETCH_ALL_LINKS: boolean | undefined = undefined;
-export const SHOULD_DEBUG_SQL = true;
+export const SHOULD_DEBUG_SQL = false;
 
-// META / DOMAINS
+// META / SOURCE / DOMAINS
 
 export const SITE_TITLE =
   process.env.NEXT_PUBLIC_SITE_TITLE ||
   'Photo Blog';
+
+// SOURCE
+export const VERCEL_COMMIT_MESSAGE =
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_MESSAGE;
+export const VERCEL_COMMIT_SHA =
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA;
 
 const VERCEL_ENV = process.env.NEXT_PUBLIC_VERCEL_ENV;
 const VERCEL_PRODUCTION_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL;
@@ -22,6 +28,12 @@ const VERCEL_BRANCH = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_REF;
 const VERCEL_PROJECT_URL = VERCEL_BRANCH_URL && VERCEL_BRANCH
   ? `${VERCEL_BRANCH_URL.split(`-git-${VERCEL_BRANCH}-`)[0]}.vercel.app`
   : undefined;
+
+export const IS_PRODUCTION = process.env.NODE_ENV === 'production' && (
+  // Make environment checks resilient to non-Vercel deployments
+  VERCEL_ENV === 'production' ||
+  !VERCEL_ENV
+);
 
 // User-facing domain, potential site title
 const SITE_DOMAIN =
@@ -49,38 +61,44 @@ export const SITE_DESCRIPTION =
   process.env.NEXT_PUBLIC_SITE_DESCRIPTION ||
   SITE_DOMAIN;
 
-// STORAGE: VERCEL POSTGRES
-export const HAS_VERCEL_POSTGRES =
-  (process.env.POSTGRES_HOST ?? '').length > 0;
+export const SITE_ABOUT = process.env.NEXT_PUBLIC_SITE_ABOUT;
 
+export const HAS_DEFINED_SITE_DESCRIPTION =
+  Boolean(process.env.NEXT_PUBLIC_SITE_DESCRIPTION);
+
+// STORAGE: DATABASE
+export const HAS_DATABASE =
+  Boolean(process.env.POSTGRES_URL);
+export const POSTGRES_SSL_ENABLED =
+  process.env.DISABLE_POSTGRES_SSL === '1' ? false : true;
 // STORAGE: VERCEL KV
 export const HAS_VERCEL_KV =
-  (process.env.KV_URL ?? '').length > 0;
+  Boolean(process.env.KV_URL);
 
 // STORAGE: VERCEL BLOB
 export const HAS_VERCEL_BLOB_STORAGE =
-  (process.env.BLOB_READ_WRITE_TOKEN ?? '').length > 0;
+  Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 
 // STORAGE: Cloudflare R2
 // Includes separate check for client-side usage, i.e., url construction
 export const HAS_CLOUDFLARE_R2_STORAGE_CLIENT =
-  (process.env.NEXT_PUBLIC_CLOUDFLARE_R2_BUCKET ?? '').length > 0 &&
-  (process.env.NEXT_PUBLIC_CLOUDFLARE_R2_ACCOUNT_ID ?? '').length > 0 &&
-  (process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_DOMAIN ?? '').length > 0;
+  Boolean(process.env.NEXT_PUBLIC_CLOUDFLARE_R2_BUCKET) &&
+  Boolean(process.env.NEXT_PUBLIC_CLOUDFLARE_R2_ACCOUNT_ID) &&
+  Boolean(process.env.NEXT_PUBLIC_CLOUDFLARE_R2_PUBLIC_DOMAIN);
 export const HAS_CLOUDFLARE_R2_STORAGE =
   HAS_CLOUDFLARE_R2_STORAGE_CLIENT &&
-  (process.env.CLOUDFLARE_R2_ACCESS_KEY ?? '').length > 0 &&
-  (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ?? '').length > 0;
+  Boolean(process.env.CLOUDFLARE_R2_ACCESS_KEY) &&
+  Boolean(process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY);
 
 // STORAGE: AWS S3
 // Includes separate check for client-side usage, i.e., url construction
 export const HAS_AWS_S3_STORAGE_CLIENT =
-  (process.env.NEXT_PUBLIC_AWS_S3_BUCKET ?? '').length > 0 &&
-  (process.env.NEXT_PUBLIC_AWS_S3_REGION ?? '').length > 0;
+  Boolean(process.env.NEXT_PUBLIC_AWS_S3_BUCKET) &&
+  Boolean(process.env.NEXT_PUBLIC_AWS_S3_REGION);
 export const HAS_AWS_S3_STORAGE =
   HAS_AWS_S3_STORAGE_CLIENT &&
-  (process.env.AWS_S3_ACCESS_KEY ?? '').length > 0 &&
-  (process.env.AWS_S3_SECRET_ACCESS_KEY ?? '').length > 0;
+  Boolean(process.env.AWS_S3_ACCESS_KEY) &&
+  Boolean(process.env.AWS_S3_SECRET_ACCESS_KEY);
 
 export const HAS_MULTIPLE_STORAGE_PROVIDERS = [
   HAS_VERCEL_BLOB_STORAGE,
@@ -101,8 +119,22 @@ export const CURRENT_STORAGE: StorageType =
 
 // SETTINGS
 
+export const DEFAULT_THEME =
+  process.env.NEXT_PUBLIC_DEFAULT_THEME === 'dark'
+    ? 'dark'
+    : process.env.NEXT_PUBLIC_DEFAULT_THEME === 'light'
+      ? 'light'
+      : 'system';
 export const PRO_MODE_ENABLED =
   process.env.NEXT_PUBLIC_PRO_MODE === '1';
+export const GRID_HOMEPAGE_ENABLED =
+  process.env.NEXT_PUBLIC_GRID_HOMEPAGE === '1';
+export const STATICALLY_OPTIMIZED_PAGES =
+  process.env.NEXT_PUBLIC_STATICALLY_OPTIMIZE_PAGES === '1';
+export const STATICALLY_OPTIMIZED_OG_IMAGES =
+  process.env.NEXT_PUBLIC_STATICALLY_OPTIMIZE_OG_IMAGES === '1';
+export const MATTE_PHOTOS =
+  process.env.NEXT_PUBLIC_MATTE_PHOTOS === '1';
 export const BLUR_ENABLED =
   process.env.NEXT_PUBLIC_BLUR_DISABLED !== '1';
 export const GEO_PRIVACY_ENABLED =
@@ -117,6 +149,8 @@ export const PUBLIC_API_ENABLED =
   process.env.NEXT_PUBLIC_PUBLIC_API === '1';
 export const SHOW_REPO_LINK =
   process.env.NEXT_PUBLIC_HIDE_REPO_LINK !== '1';
+export const SHOW_SOCIAL =
+  process.env.NEXT_PUBLIC_HIDE_SOCIAL !== '1';
 export const SHOW_FILM_SIMULATIONS =
   process.env.NEXT_PUBLIC_HIDE_FILM_SIMULATIONS !== '1';
 export const SHOW_EXIF_DATA =
@@ -129,31 +163,54 @@ export const OG_TEXT_BOTTOM_ALIGNMENT =
   (process.env.NEXT_PUBLIC_OG_TEXT_ALIGNMENT ?? '').toUpperCase() === 'BOTTOM';
 export const ADMIN_DEBUG_TOOLS_ENABLED = process.env.ADMIN_DEBUG_TOOLS === '1';
 
-export const HIGH_DENSITY_GRID = GRID_ASPECT_RATIO <= 1;
+export const PREFERS_LOW_DENSITY_GRID =
+  process.env.NEXT_PUBLIC_SHOW_LARGE_THUMBNAILS === '1';
+export const HIGH_DENSITY_GRID =
+  GRID_ASPECT_RATIO <= 1 &&
+  !PREFERS_LOW_DENSITY_GRID;
 
 export const CONFIG_CHECKLIST_STATUS = {
-  hasVercelPostgres: HAS_VERCEL_POSTGRES,
-  hasVercelKV: HAS_VERCEL_KV,
+  hasDatabase: HAS_DATABASE,
+  isPostgresSslEnabled: POSTGRES_SSL_ENABLED,
+  hasVercelPostgres: (
+    /\/verceldb\?/.test(process.env.POSTGRES_URL ?? '') ||
+    /\.vercel-storage\.com\//.test(process.env.POSTGRES_URL ?? '')
+  ),
+  hasVercelKv: HAS_VERCEL_KV,
   hasVercelBlobStorage: HAS_VERCEL_BLOB_STORAGE,
   hasCloudflareR2Storage: HAS_CLOUDFLARE_R2_STORAGE,
   hasAwsS3Storage: HAS_AWS_S3_STORAGE,
-  hasStorageProvider:
+  hasStorageProvider: (
     HAS_VERCEL_BLOB_STORAGE ||
     HAS_CLOUDFLARE_R2_STORAGE ||
-    HAS_AWS_S3_STORAGE,
+    HAS_AWS_S3_STORAGE
+  ),
   hasMultipleStorageProviders: HAS_MULTIPLE_STORAGE_PROVIDERS,
   currentStorage: CURRENT_STORAGE,
-  hasAuthSecret: (process.env.AUTH_SECRET ?? '').length > 0,
+  hasAuthSecret: Boolean(process.env.AUTH_SECRET),
   hasAdminUser: (
-    (process.env.ADMIN_EMAIL ?? '').length > 0 &&
-    (process.env.ADMIN_PASSWORD ?? '').length > 0
+    Boolean(process.env.ADMIN_EMAIL) &&
+    Boolean(process.env.ADMIN_PASSWORD)
   ),
-  hasTitle: (process.env.NEXT_PUBLIC_SITE_TITLE ?? '').length > 0,
-  hasDomain: (process.env.NEXT_PUBLIC_SITE_DOMAIN ?? '').length > 0,
+  hasDomain: Boolean(process.env.NEXT_PUBLIC_SITE_DOMAIN),
+  hasTitle: Boolean(process.env.NEXT_PUBLIC_SITE_TITLE),
+  hasDescription: HAS_DEFINED_SITE_DESCRIPTION,
+  hasAbout: Boolean(process.env.NEXT_PUBLIC_SITE_ABOUT),
+  hasDefaultTheme: Boolean(process.env.NEXT_PUBLIC_DEFAULT_THEME),
   showRepoLink: SHOW_REPO_LINK,
+  showSocial: SHOW_SOCIAL,
   showFilmSimulations: SHOW_FILM_SIMULATIONS,
   showExifInfo: SHOW_EXIF_DATA,
+  defaultTheme: DEFAULT_THEME,
   isProModeEnabled: PRO_MODE_ENABLED,
+  isGridHomepageEnabled: GRID_HOMEPAGE_ENABLED,
+  isStaticallyOptimized: (
+    STATICALLY_OPTIMIZED_PAGES ||
+    STATICALLY_OPTIMIZED_OG_IMAGES
+  ),
+  arePagesStaticallyOptimized: STATICALLY_OPTIMIZED_PAGES,
+  areOGImagesStaticallyOptimized: STATICALLY_OPTIMIZED_OG_IMAGES,
+  arePhotosMatted: MATTE_PHOTOS,
   isBlurEnabled: BLUR_ENABLED,
   isGeoPrivacyEnabled: GEO_PRIVACY_ENABLED,
   isAiTextGenerationEnabled: AI_TEXT_GENERATION_ENABLED,
@@ -169,12 +226,19 @@ export const CONFIG_CHECKLIST_STATUS = {
   isOgTextBottomAligned: OG_TEXT_BOTTOM_ALIGNMENT,
   gridAspectRatio: GRID_ASPECT_RATIO,
   hasGridAspectRatio: Boolean(process.env.NEXT_PUBLIC_GRID_ASPECT_RATIO),
+  gridDensity: HIGH_DENSITY_GRID,
+  hasGridDensityPreference:
+    Boolean(process.env.NEXT_PUBLIC_SHOW_LARGE_THUMBNAILS),
+  baseUrl: BASE_URL,
+  commitSha: VERCEL_COMMIT_SHA ? VERCEL_COMMIT_SHA.slice(0, 7) : undefined,
+  commitMessage: VERCEL_COMMIT_MESSAGE,
 };
 
 export type ConfigChecklistStatus = typeof CONFIG_CHECKLIST_STATUS;
 
 export const IS_SITE_READY =
-  CONFIG_CHECKLIST_STATUS.hasVercelPostgres &&
+  CONFIG_CHECKLIST_STATUS.hasDatabase &&
   CONFIG_CHECKLIST_STATUS.hasStorageProvider &&
   CONFIG_CHECKLIST_STATUS.hasAuthSecret &&
   CONFIG_CHECKLIST_STATUS.hasAdminUser;
+  

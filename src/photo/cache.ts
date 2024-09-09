@@ -5,28 +5,26 @@ import {
   unstable_noStore,
 } from 'next/cache';
 import {
-  GetPhotosOptions,
   getPhoto,
   getPhotos,
-  getPhotosCount,
-  getPhotosCountIncludingHidden,
   getUniqueCameras,
   getUniqueTags,
-  getPhotosTagMeta,
-  getPhotosCameraMeta,
   getUniqueTagsHidden,
   getUniqueFilmSimulations,
-  getPhotosFilmSimulationMeta,
-  getPhotosDateRange,
   getPhotosNearId,
   getPhotosMostRecentUpdate,
-} from '@/services/vercel-postgres';
+  getPhotosMeta,
+  getUniqueFocalLengths,
+  getUniqueLenses,
+} from '@/photo/db/query';
+import { GetPhotosOptions } from './db';
 import { parseCachedPhotoDates, parseCachedPhotosDates } from '@/photo';
 import { createCameraKey } from '@/camera';
 import {
   PATHS_ADMIN,
   PATHS_TO_CACHE,
   PATH_ADMIN,
+  PATH_FEED,
   PATH_GRID,
   PATH_ROOT,
   PREFIX_CAMERA,
@@ -34,7 +32,7 @@ import {
   PREFIX_TAG,
   pathForPhoto,
 } from '@/site/paths';
-import { cache } from 'react';
+import { createLensKey } from '@/lens';
 
 // Table key
 const KEY_PHOTOS            = 'photos';
@@ -42,7 +40,9 @@ const KEY_PHOTO             = 'photo';
 // Field keys
 const KEY_TAGS              = 'tags';
 const KEY_CAMERAS           = 'cameras';
+const KEY_LENSES            = 'lenses';
 const KEY_FILM_SIMULATIONS  = 'film-simulations';
+const KEY_FOCAL_LENGTHS     = 'focal-lengths';
 // Type keys
 const KEY_COUNT             = 'count';
 const KEY_HIDDEN            = 'hidden';
@@ -58,8 +58,13 @@ const getPhotosCacheKeyForOption = (
     const value = options[option];
     return value ? `${option}-${createCameraKey(value)}` : null;
   }
+  case 'lens': {
+    const value = options[option];
+    return value ? `${option}-${createLensKey(value)}` : null;
+  }
   case 'takenBefore':
-  case 'takenAfterInclusive': {
+  case 'takenAfterInclusive': 
+  case 'updatedBefore': {
     const value = options[option];
     return value ? `${option}-${value.toISOString()}` : null;
   }
@@ -119,9 +124,10 @@ export const revalidatePhoto = (photoId: string) => {
   revalidateCamerasKey();
   revalidateFilmSimulationsKey();
   // Paths
-  revalidatePath(pathForPhoto(photoId), 'layout');
+  revalidatePath(pathForPhoto({ photo: photoId }), 'layout');
   revalidatePath(PATH_ROOT, 'layout');
   revalidatePath(PATH_GRID, 'layout');
+  revalidatePath(PATH_FEED, 'layout');
   revalidatePath(PREFIX_TAG, 'layout');
   revalidatePath(PREFIX_CAMERA, 'layout');
   revalidatePath(PREFIX_FILM_SIMULATION, 'layout');
@@ -136,59 +142,40 @@ export const getPhotosCached = (
   getPhotos,
   [KEY_PHOTOS, ...getPhotosCacheKeys(...args)],
 )(...args).then(parseCachedPhotosDates);
-export const getPhotosCachedCached = cache(getPhotosCached);
 
-const getPhotosNearIdCached = (
+export const getPhotosNearIdCached = (
   ...args: Parameters<typeof getPhotosNearId>
 ) => unstable_cache(
   getPhotosNearId,
-  [KEY_PHOTOS],
-)(...args).then(({ photos, photo }) => ({
-  photos: parseCachedPhotosDates(photos),
-  photo: photo ? parseCachedPhotoDates(photo) : undefined,
-}));
-export const getPhotosNearIdCachedCached = cache(getPhotosNearIdCached);
+  [KEY_PHOTOS, ...getPhotosCacheKeys(args[1])],
+)(...args).then(({ photos, indexNumber }) => {
+  const [photoId, { limit }] = args;
+  const photo = photos.find(({ id }) => id === photoId);
+  const isPhotoFirst = photos.findIndex(p => p.id === photoId) === 0;
+  return {
+    photo: photo ? parseCachedPhotoDates(photo) : undefined,
+    photos: parseCachedPhotosDates(photos),
+    ...limit && {
+      photosGrid: photos.slice(
+        isPhotoFirst ? 1 : 2,
+        isPhotoFirst ? limit - 1 : limit,
+      ),
+    },
+    indexNumber,
+  };
+});
 
-export const getPhotosDateRangeCached =
-  unstable_cache(
-    getPhotosDateRange,
-    [KEY_PHOTOS, KEY_DATE_RANGE],
-  );
-
-export const getPhotosCountCached =
-  unstable_cache(
-    getPhotosCount,
-    [KEY_PHOTOS, KEY_COUNT],
-  );
-
-export const getPhotosCountIncludingHiddenCached =
-  unstable_cache(
-    getPhotosCountIncludingHidden,
-    [KEY_PHOTOS, KEY_COUNT, KEY_HIDDEN],
-  );
+export const getPhotosMetaCached = (
+  ...args: Parameters<typeof getPhotosMeta>
+) => unstable_cache(
+  getPhotosMeta,
+  [KEY_PHOTOS, KEY_COUNT, KEY_DATE_RANGE, ...getPhotosCacheKeys(...args)],
+)(...args);
 
 export const getPhotosMostRecentUpdateCached =
   unstable_cache(
     () => getPhotosMostRecentUpdate(),
     [KEY_PHOTOS, KEY_COUNT, KEY_DATE_RANGE],
-  );
-
-export const getPhotosTagMetaCached =
-  unstable_cache(
-    getPhotosTagMeta,
-    [KEY_PHOTOS, KEY_TAGS, KEY_DATE_RANGE],
-  );
-
-export const getPhotosCameraMetaCached =
-  unstable_cache(
-    getPhotosCameraMeta,
-    [KEY_PHOTOS, KEY_CAMERAS, KEY_DATE_RANGE],
-  );
-
-export const getPhotosFilmSimulationMetaCached =
-  unstable_cache(
-    getPhotosFilmSimulationMeta,
-    [KEY_PHOTOS, KEY_FILM_SIMULATIONS, KEY_DATE_RANGE],
   );
 
 export const getPhotoCached = (...args: Parameters<typeof getPhoto>) =>
@@ -215,13 +202,30 @@ export const getUniqueCamerasCached =
     [KEY_PHOTOS, KEY_CAMERAS]
   );
 
+export const getUniqueLensesCached =
+  unstable_cache(
+    getUniqueLenses,
+    [KEY_PHOTOS, KEY_LENSES]
+  );
+
 export const getUniqueFilmSimulationsCached =
   unstable_cache(
     getUniqueFilmSimulations,
     [KEY_PHOTOS, KEY_FILM_SIMULATIONS],
   );
 
+export const getUniqueFocalLengthsCached =
+  unstable_cache(
+    getUniqueFocalLengths,
+    [KEY_PHOTOS, KEY_FOCAL_LENGTHS],
+  );
+
 // No store
+
+export const getPhotosNoStore = (...args: Parameters<typeof getPhotos>) => {
+  unstable_noStore();
+  return getPhotos(...args);
+};
 
 export const getPhotoNoStore = (...args: Parameters<typeof getPhoto>) => {
   unstable_noStore();

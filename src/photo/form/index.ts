@@ -1,13 +1,17 @@
 import type { ExifData } from 'ts-exif-parser';
-import { Photo, PhotoDbInsert, PhotoExif } from '..';
+import { DEFAULT_ASPECT_RATIO, Photo, PhotoDbInsert, PhotoExif } from '..';
 import {
   convertTimestampToNaivePostgresString,
   convertTimestampWithOffsetToPostgresString,
   generateLocalNaivePostgresString,
   generateLocalPostgresString,
 } from '@/utility/date';
-import { getAspectRatioFromExif, getOffsetFromExif } from '@/utility/exif';
-import { toFixedNumber } from '@/utility/number';
+import {
+  convertApertureValueToFNumber,
+  getAspectRatioFromExif,
+  getOffsetFromExif,
+} from '@/utility/exif';
+import { roundToNumber } from '@/utility/number';
 import { convertStringToArray } from '@/utility/string';
 import { generateNanoid } from '@/utility/nanoid';
 import {
@@ -15,15 +19,12 @@ import {
   MAKE_FUJIFILM,
 } from '@/vendors/fujifilm';
 import { FilmSimulation } from '@/simulation';
-import {
-  BLUR_ENABLED,
-  GEO_PRIVACY_ENABLED,
-} from '@/site/config';
-import { TAG_FAVS, doesTagsStringIncludeFavs } from '@/tag';
+import { GEO_PRIVACY_ENABLED } from '@/site/config';
+import { TAG_FAVS, getValidationMessageForTags } from '@/tag';
 
 type VirtualFields = 'favorite';
 
-export type PhotoFormData = Record<keyof PhotoDbInsert | VirtualFields, string>;
+export type PhotoFormData = Record<keyof PhotoDbInsert | VirtualFields, string>
 
 export type FieldSetType =
   'text' |
@@ -42,7 +43,7 @@ type FormMeta = {
   label: string
   note?: string
   required?: boolean
-  virtual?: boolean
+  excludeFromInsert?: boolean
   readOnly?: boolean
   validate?: (value?: string) => string | undefined
   validateStringMaxLength?: number
@@ -79,9 +80,7 @@ const FORM_METADATA = (
   tags: {
     label: 'tags',
     tagOptions,
-    validate: tags => doesTagsStringIncludeFavs(tags)
-      ? `'${TAG_FAVS}' is a reserved tag`
-      : undefined,
+    validate: getValidationMessageForTags,
   },
   semanticDescription: {
     type: 'textarea',
@@ -94,9 +93,6 @@ const FORM_METADATA = (
   blurData: {
     label: 'blur data',
     readOnly: true,
-    required: BLUR_ENABLED,
-    hideIfEmpty: !BLUR_ENABLED,
-    loadingMessage: 'Generating blur data ...',
   },
   url: { label: 'url', readOnly: true },
   extension: { label: 'extension', readOnly: true },
@@ -111,6 +107,8 @@ const FORM_METADATA = (
   },
   focalLength: { label: 'focal length' },
   focalLengthIn35MmFormat: { label: 'focal length 35mm-equivalent' },
+  lensMake: { label: 'lens make' },
+  lensModel: { label: 'lens model' },
   fNumber: { label: 'aperture' },
   iso: { label: 'ISO' },
   exposureTime: { label: 'exposure time' },
@@ -121,7 +119,7 @@ const FORM_METADATA = (
   takenAt: { label: 'taken at' },
   takenAtNaive: { label: 'taken at (naive)' },
   priorityOrder: { label: 'priority order' },
-  favorite: { label: 'favorite', type: 'checkbox', virtual: true },
+  favorite: { label: 'favorite', type: 'checkbox', excludeFromInsert: true },
   hidden: { label: 'hidden', type: 'checkbox' },
 });
 
@@ -147,10 +145,9 @@ export const isFormValid = (formData: Partial<PhotoFormData>) =>
   FORM_METADATA_ENTRIES().every(
     ([key, { required, validate, validateStringMaxLength }]) =>
       (!required || Boolean(formData[key])) &&
-      (validate?.(formData[key]) === undefined) &&
+      (!validate?.(formData[key])) &&
       // eslint-disable-next-line max-len
-      (!validateStringMaxLength || (formData[key]?.length ?? 0) <= validateStringMaxLength) &&
-      (key !== 'tags' || !doesTagsStringIncludeFavs(formData.tags ?? ''))
+      (!validateStringMaxLength || (formData[key]?.length ?? 0) <= validateStringMaxLength)
   );
 
 export const formHasTextContent = ({
@@ -204,8 +201,13 @@ export const convertExifToFormData = (
   model: data.tags?.Model,
   focalLength: data.tags?.FocalLength?.toString(),
   focalLengthIn35MmFormat: data.tags?.FocalLengthIn35mmFormat?.toString(),
-  fNumber: data.tags?.FNumber?.toString(),
-  iso: data.tags?.ISO?.toString(),
+  lensMake: data.tags?.LensMake,
+  lensModel: data.tags?.LensModel,
+  fNumber: (
+    data.tags?.FNumber?.toString() ||
+    convertApertureValueToFNumber(data.tags?.ApertureValue)
+  ),
+  iso: data.tags?.ISO?.toString() || data.tags?.ISOSpeed?.toString(),
   exposureTime: data.tags?.ExposureTime?.toString(),
   exposureCompensation: data.tags?.ExposureCompensation?.toString(),
   latitude:
@@ -226,8 +228,7 @@ export const convertExifToFormData = (
 // PREPARE FORM FOR DB INSERT
 
 export const convertFormDataToPhotoDbInsert = (
-  formData: FormData | PhotoFormData,
-  generateId?: boolean,
+  formData: FormData | Partial<PhotoFormData>,
 ): PhotoDbInsert => {
   const photoForm = formData instanceof FormData
     ? Object.fromEntries(formData) as PhotoFormData
@@ -242,10 +243,11 @@ export const convertFormDataToPhotoDbInsert = (
   // - remove server action ID
   // - remove empty strings
   Object.keys(photoForm).forEach(key => {
+    const meta = FORM_METADATA()[key as keyof PhotoFormData];
     if (
       key.startsWith('$ACTION_ID_') ||
       (photoForm as any)[key] === '' ||
-      FORM_METADATA()[key as keyof PhotoFormData]?.virtual
+      meta?.excludeFromInsert
     ) {
       delete (photoForm as any)[key];
     }
@@ -253,11 +255,13 @@ export const convertFormDataToPhotoDbInsert = (
 
   return {
     ...(photoForm as PhotoFormData & { filmSimulation?: FilmSimulation }),
-    ...(generateId && !photoForm.id) && { id: generateNanoid() },
+    ...!photoForm.id && { id: generateNanoid() },
     // Convert form strings to arrays
     tags: tags.length > 0 ? tags : undefined,
     // Convert form strings to numbers
-    aspectRatio: toFixedNumber(parseFloat(photoForm.aspectRatio), 6),
+    aspectRatio: photoForm.aspectRatio
+      ? roundToNumber(parseFloat(photoForm.aspectRatio), 6)
+      : DEFAULT_ASPECT_RATIO,
     focalLength: photoForm.focalLength
       ? parseInt(photoForm.focalLength)
       : undefined,

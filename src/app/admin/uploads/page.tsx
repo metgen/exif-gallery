@@ -1,12 +1,20 @@
-import StorageUrls from '@/admin/StorageUrls';
 import { getStorageUploadUrlsNoStore } from '@/services/storage/cache';
 import SiteGrid from '@/components/SiteGrid';
+import { getUniqueTagsCached } from '@/photo/cache';
+import AdminUploadsClient from '@/admin/AdminUploadsClient';
+
+export const maxDuration = 60;
 
 export default async function AdminUploadsPage() {
-  const storageUrls = await getStorageUploadUrlsNoStore();
+  const urls = await getStorageUploadUrlsNoStore();
+  const uniqueTags = await getUniqueTagsCached();
   return (
     <SiteGrid
-      contentMain={<StorageUrls urls={storageUrls} />}
+      contentMain={
+        <AdminUploadsClient {...{
+          urls,
+          uniqueTags,
+        }} />}
     />
   );
 }

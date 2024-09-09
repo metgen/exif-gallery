@@ -15,6 +15,7 @@ export default function PhotoOGTile({
   onLoad,
   onFail,
   retryTime,
+  onVisible,
 }: {
   photo: Photo
   loadingState?: OGLoadingState
@@ -22,18 +23,20 @@ export default function PhotoOGTile({
   onFail?: () => void
   riseOnHover?: boolean
   retryTime?: number
+  onVisible?: () => void
 }) {
   return (
     <OGTile {...{
       title: titleForPhoto(photo),
       description: descriptionForPhoto(photo),
-      path: pathForPhoto(photo),
+      path: pathForPhoto({ photo }),
       pathImageAbsolute: absolutePathForPhotoImage(photo),
       loadingState: loadingStateExternal,
       onLoad,
       onFail,
       riseOnHover,
       retryTime,
+      onVisible,
     }}/>
   );
 };

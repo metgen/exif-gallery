@@ -1,17 +1,19 @@
 'use client';
 
-import InfinitePhotoScroll, {
-  InfinitePhotoScrollExternalProps,
-} from './InfinitePhotoScroll';
+import { PATH_ROOT } from '@/site/paths';
+import InfinitePhotoScroll from './InfinitePhotoScroll';
 import PhotosLarge from './PhotosLarge';
 
 export default function PhotosLargeInfinite({
   initialOffset,
   itemsPerPage,
-}: InfinitePhotoScrollExternalProps) {
+}: {
+  initialOffset: number
+  itemsPerPage: number
+}) {
   return (
     <InfinitePhotoScroll
-      cacheKey="PhotosLarge"
+      cacheKey={`page-${PATH_ROOT}`}
       initialOffset={initialOffset}
       itemsPerPage={itemsPerPage}
       wrapMoreButtonInGrid

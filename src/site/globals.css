@@ -67,6 +67,7 @@
   input[type=checkbox] {
     @apply
       rounded-md
+      dark:bg-transparent
   }
   .error {
     @apply
@@ -77,12 +78,13 @@
       cursor-pointer
       hover:no-underline
       inline-flex gap-2 items-center
-      px-4
+      px-3
       text-base
       shadow-sm
       active:bg-gray-100 dark:active:bg-gray-900
       hover:border-gray-300 dark:hover:border-gray-600
       disabled:cursor-not-allowed
+      disabled:text-dim
       disabled:bg-gray-100 dark:disabled:bg-gray-900
       disabled:border-gray-200 disabled:dark:border-gray-700
   }
@@ -96,8 +98,9 @@
     @apply
       text-invert
       bg-gray-900 dark:bg-gray-100
-      disabled:text-gray-300 disabled:dark:text-gray-700
-      disabled:bg-white disabled:dark:bg-black
+      disabled:text-dim
+      font-medium
+      disabled:bg-gray-100 dark:disabled:bg-gray-900
       disabled:border-gray-200 disabled:dark:border-gray-700
       border-gray-900 dark:border-gray-100
       active:bg-gray-700 active:border-gray-700
@@ -111,7 +114,7 @@
   button.link {
     @apply
       p-0 min-h-0
-      border-none bg-transparent active:bg-transparent shadow-none
+      border-none bg-transparent active:bg-transparent shadow-none rounded-none
   }
   a, .link {
     @apply
@@ -139,6 +142,10 @@
     @apply
       text-gray-400/80 dark:text-gray-400/50
   }
+  .text-extra-extra-dim {
+    @apply
+      text-gray-200 dark:text-gray-800
+  }
   .text-icon {
     @apply
       text-gray-800 dark:text-gray-200
@@ -146,6 +153,11 @@
   .text-error {
     @apply
       text-red-500 dark:text-red-400
+  }
+  /* Utilities: Border */
+  .border-subtle {
+    @apply
+      border border-gray-200 dark:border-gray-800
   }
   /* Utilities: Background */
   .bg-main {
@@ -177,6 +189,10 @@
   .max-h-baseline {
     @apply
       max-h-[1.1875rem] md:max-h-[1.25rem]
+  }
+  .-mt-baseline {
+    @apply
+      -mt-[1.1875rem] md:-mt-[1.25rem]
   }
   .bg-baseline-grid {
     @apply

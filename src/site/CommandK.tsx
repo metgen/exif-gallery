@@ -1,6 +1,8 @@
-import CommandKClient, { CommandKSection } from '@/components/CommandKClient';
+import CommandKClient, {
+  CommandKSection,
+} from '@/components/cmdk/CommandKClient';
 import {
-  getPhotosCountCached,
+  getPhotosMetaCached,
   getUniqueCamerasCached,
   getUniqueFilmSimulationsCached,
   getUniqueTagsCached,
@@ -8,16 +10,18 @@ import {
 import {
   pathForCamera,
   pathForFilmSimulation,
-  pathForTag,
+  pathForFocalLength,
 } from './paths';
 import { formatCameraText } from '@/camera';
 import { photoQuantityText } from '@/photo';
 import { formatCount, formatCountDescriptive } from '@/utility/string';
-import { sortTagsObject } from '@/tag';
 import PhotoFilmSimulationIcon from '@/simulation/PhotoFilmSimulationIcon';
-import { FaTag } from 'react-icons/fa';
 import { IoMdCamera } from 'react-icons/io';
-import { ADMIN_DEBUG_TOOLS_ENABLED } from './config';
+import { ADMIN_DEBUG_TOOLS_ENABLED, SHOW_FILM_SIMULATIONS } from './config';
+import { labelForFilmSimulation } from '@/vendors/fujifilm';
+import { getUniqueFocalLengths } from '@/photo/db/query';
+import { formatFocalLength } from '@/focal';
+import { TbCone } from 'react-icons/tb';
 
 export default async function CommandK() {
   const [
@@ -25,26 +29,18 @@ export default async function CommandK() {
     tags,
     cameras,
     filmSimulations,
+    focalLengths,
   ] = await Promise.all([
-    getPhotosCountCached().catch(() => 0),
+    getPhotosMetaCached()
+      .then(({ count }) => count)
+      .catch(() => 0),
     getUniqueTagsCached().catch(() => []),
     getUniqueCamerasCached().catch(() => []),
-    getUniqueFilmSimulationsCached().catch(() => []),
+    SHOW_FILM_SIMULATIONS
+      ? getUniqueFilmSimulationsCached().catch(() => [])
+      : [],
+    getUniqueFocalLengths().catch(() => []),
   ]);
-
-  const SECTION_TAGS: CommandKSection = {
-    heading: 'Tags',
-    accessory: <FaTag
-      size={10}
-      className="translate-x-[1px] translate-y-[0.75px]"
-    />,
-    items: sortTagsObject(tags).map(({ tag, count }) => ({
-      label: tag,
-      annotation: formatCount(count),
-      annotationAria: formatCountDescriptive(count),
-      path: pathForTag(tag),
-    })),
-  };
 
   const SECTION_CAMERAS: CommandKSection = {
     heading: 'Cameras',
@@ -63,18 +59,32 @@ export default async function CommandK() {
       <PhotoFilmSimulationIcon className="translate-y-[0.5px]" />
     </span>,
     items: filmSimulations.map(({ simulation, count }) => ({
-      label: simulation,
+      label: labelForFilmSimulation(simulation).medium,
       annotation: formatCount(count),
       annotationAria: formatCountDescriptive(count),
       path: pathForFilmSimulation(simulation),
     })),
   };
 
+  const SECTION_FOCAL: CommandKSection = {
+    heading: 'Focal Lengths',
+    accessory: <TbCone
+      className="rotate-[270deg] text-[14px]"
+    />,
+    items: focalLengths.map(({ focal, count }) => ({
+      label: formatFocalLength(focal)!,
+      annotation: formatCount(count),
+      annotationAria: formatCountDescriptive(count),
+      path: pathForFocalLength(focal),
+    })),
+  };
+
   return <CommandKClient
+    tags={tags}
     serverSections={[
-      SECTION_TAGS,
       SECTION_CAMERAS,
       SECTION_FILM,
+      SECTION_FOCAL,
     ]}
     showDebugTools={ADMIN_DEBUG_TOOLS_ENABLED}
     footer={photoQuantityText(count, false)}

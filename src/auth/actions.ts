@@ -2,6 +2,7 @@
 
 import {
   KEY_CALLBACK_URL,
+  KEY_CREDENTIALS_CALLBACK_ROUTE_ERROR_URL,
   KEY_CREDENTIALS_SIGN_IN_ERROR,
   KEY_CREDENTIALS_SIGN_IN_ERROR_URL,
   auth,
@@ -9,6 +10,7 @@ import {
   signOut,
 } from '@/auth';
 import { PATH_ADMIN_PHOTOS, PATH_ROOT } from '@/site/paths';
+import type { Session } from 'next-auth';
 import { redirect } from 'next/navigation';
 
 export const signInAction = async (
@@ -20,7 +22,9 @@ export const signInAction = async (
   } catch (error) {
     if (
       `${error}`.includes(KEY_CREDENTIALS_SIGN_IN_ERROR) || 
-      `${error}`.includes(KEY_CREDENTIALS_SIGN_IN_ERROR_URL)
+      `${error}`.includes(KEY_CREDENTIALS_SIGN_IN_ERROR_URL) ||
+      // New error thrown in next-auth 5.0.0-beta.19 for incorrect credentials
+      `${error}`.includes(KEY_CREDENTIALS_CALLBACK_ROUTE_ERROR_URL)
     ) {
       // Return credentials error to display on sign-in page.
       return KEY_CREDENTIALS_SIGN_IN_ERROR;
@@ -39,4 +43,7 @@ export const signInAction = async (
 export const signOutAndRedirectAction = async () =>
   signOut({ redirectTo: PATH_ROOT });
 
-export const getCurrentUser = async () => (await auth())?.user;
+export const getAuthAction = () => auth();
+
+export const logClientAuthUpdate = (data: Session | null | undefined) =>
+  console.log('Client auth update', data);

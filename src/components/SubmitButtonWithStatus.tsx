@@ -1,24 +1,14 @@
 'use client';
 
-import { HTMLProps, useEffect, useRef } from 'react';
+import { ComponentProps, useEffect, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
-import Spinner, { SpinnerColor } from './Spinner';
 import { clsx } from 'clsx/lite';
 import { toastSuccess } from '@/toast';
-
-interface Props extends HTMLProps<HTMLButtonElement> {
-  icon?: JSX.Element
-  styleAsLink?: boolean
-  spinnerColor?: SpinnerColor
-  onFormStatusChange?: (pending: boolean) => void
-  onFormSubmitToastMessage?: string
-  onFormSubmit?: () => void
-  primary?: boolean
-}
+import LoaderButton from '@/components/primitives/LoaderButton';
 
 export default function SubmitButtonWithStatus({
   icon,
-  styleAsLink,
+  styleAs,
   spinnerColor,
   onFormStatusChange,
   onFormSubmitToastMessage,
@@ -26,16 +16,19 @@ export default function SubmitButtonWithStatus({
   children,
   disabled,
   className,
-  primary,
   type: _type,
   ...buttonProps
-}: Props) {
+}: {
+  onFormStatusChange?: (pending: boolean) => void
+  onFormSubmitToastMessage?: string
+  onFormSubmit?: () => void
+} & ComponentProps<typeof LoaderButton>) {
   const { pending } = useFormStatus();
 
   const pendingPrevious = useRef(pending);
 
   useEffect(() => {
-    if (pending && !pendingPrevious.current) {
+    if (!pending && pendingPrevious.current) {
       if (onFormSubmitToastMessage) {
         toastSuccess(onFormSubmitToastMessage);
       }
@@ -49,34 +42,20 @@ export default function SubmitButtonWithStatus({
   }, [onFormStatusChange, pending]);
 
   return (
-    <button
+    <LoaderButton
+      {...buttonProps}
       type="submit"
       disabled={disabled}
       className={clsx(
-        className,
         'inline-flex items-center gap-2',
-        primary && 'primary',
-        styleAsLink && 'link',
+        className,
       )}
-      {...buttonProps}
+      icon={icon}
+      spinnerColor={spinnerColor}
+      styleAs={styleAs}
+      isLoading={pending}
     >
-      {(icon || pending) &&
-        <span className={clsx(
-          'h-4',
-          'min-w-[1rem]',
-          'inline-flex justify-center sm:justify-normal',
-          '-mx-0.5',
-          'translate-y-[1px]',
-        )}>
-          {pending
-            ? <Spinner size={14} color={spinnerColor} />
-            : icon}
-        </span>}
-      {children && <span className={clsx(
-        icon !== undefined && 'hidden sm:inline-block',
-      )}>
-        {children}
-      </span>}
-    </button>
+      {children}
+    </LoaderButton>
   );
 };
