@@ -1,5 +1,6 @@
 import AnimateItems from '@/components/AnimateItems';
-import { Photo, PhotoDateRange, PhotoSetAttributes } from '.';
+import { Photo, PhotoDateRange } from '.';
+import { PhotoSetCategory } from '../category';
 import PhotoLarge from './PhotoLarge';
 import SiteGrid from '@/components/SiteGrid';
 import PhotoGrid from './PhotoGrid';
@@ -10,6 +11,9 @@ import { TAG_HIDDEN } from '@/tag';
 import HiddenHeader from '@/tag/HiddenHeader';
 import FocalLengthHeader from '@/focal/FocalLengthHeader';
 import PhotoHeader from './PhotoHeader';
+import RecipeHeader from '@/recipe/RecipeHeader';
+import { ReactNode } from 'react';
+import LensHeader from '@/lens/LensHeader';
 
 export default function PhotoDetailPage({
   photo,
@@ -17,7 +21,9 @@ export default function PhotoDetailPage({
   photosGrid,
   tag,
   camera,
+  lens,
   simulation,
+  recipe,
   focal,
   indexNumber,
   count,
@@ -33,8 +39,8 @@ export default function PhotoDetailPage({
   dateRange?: PhotoDateRange
   shouldShare?: boolean
   includeFavoriteInAdminMenu?: boolean
-} & PhotoSetAttributes) {
-  let customHeader: JSX.Element | undefined;
+} & PhotoSetCategory) {
+  let customHeader: ReactNode | undefined;
 
   if (tag) {
     customHeader = tag === TAG_HIDDEN
@@ -62,6 +68,15 @@ export default function PhotoDetailPage({
       count={count}
       dateRange={dateRange}
     />;
+  } else if (lens) {
+    customHeader = <LensHeader
+      lens={lens}
+      photos={photos}
+      selectedPhoto={photo}
+      indexNumber={indexNumber}
+      count={count}
+      dateRange={dateRange}
+    />;
   } else if (simulation) {
     customHeader = <FilmSimulationHeader
       simulation={simulation}
@@ -70,6 +85,14 @@ export default function PhotoDetailPage({
       indexNumber={indexNumber}
       count={count}
       dateRange={dateRange}
+    />;
+  } else if (recipe) {
+    customHeader = <RecipeHeader
+      recipe={recipe}
+      photos={photos}
+      selectedPhoto={photo}
+      indexNumber={indexNumber}
+      count={count}
     />;
   } else if (focal) {
     customHeader = <FocalLengthHeader
@@ -89,6 +112,7 @@ export default function PhotoDetailPage({
         contentMain={customHeader ?? <PhotoHeader
           selectedPhoto={photo}
           photos={photos}
+          recipe={recipe}
         />}
       />
       <AnimateItems
@@ -104,12 +128,16 @@ export default function PhotoDetailPage({
             showTitle={Boolean(customHeader)}
             showTitleAsH1
             showCamera={!camera}
+            showLens={!lens}
             showSimulation={!simulation}
+            showRecipe={!recipe}
             shouldShare={shouldShare}
-            shouldShareTag={tag !== undefined}
             shouldShareCamera={camera !== undefined}
+            shouldShareLens={lens !== undefined}
+            shouldShareTag={tag !== undefined}
             shouldShareSimulation={simulation !== undefined}
-            shouldScrollOnShare={false}
+            shouldShareRecipe={recipe !== undefined}
+            shouldShareFocalLength={focal !== undefined}
             includeFavoriteInAdminMenu={includeFavoriteInAdminMenu}
           />,
         ]}

@@ -1,62 +1,77 @@
 'use client';
 
-import PhotoUpload from '@/photo/PhotoUpload';
 import { clsx } from 'clsx/lite';
 import SiteGrid from '@/components/SiteGrid';
-import { AI_TEXT_GENERATION_ENABLED, PRO_MODE_ENABLED } from '@/site/config';
 import AdminPhotosTable from '@/admin/AdminPhotosTable';
 import AdminPhotosTableInfinite from '@/admin/AdminPhotosTableInfinite';
 import PathLoaderButton from '@/components/primitives/PathLoaderButton';
-import { PATH_ADMIN_OUTDATED } from '@/site/paths';
+import { PATH_ADMIN_OUTDATED } from '@/app/paths';
 import { Photo } from '@/photo';
-import { StorageListResponse } from '@/services/storage';
-import { useState } from 'react';
+import { StorageListResponse } from '@/platforms/storage';
 import { LiaBroomSolid } from 'react-icons/lia';
 import AdminUploadsTable from './AdminUploadsTable';
+import { Timezone } from '@/utility/timezone';
+import { useAppState } from '@/state/AppState';
+import PhotoUploadWithStatus from '@/photo/PhotoUploadWithStatus';
 
 export default function AdminPhotosClient({
   photos,
   photosCount,
   photosCountOutdated,
-  onLastPhotoUpload,
   blobPhotoUrls,
+  shouldResize,
+  hasAiTextGeneration,
+  onLastUpload,
   infiniteScrollInitial,
   infiniteScrollMultiple,
+  timezone,
 }: {
   photos: Photo[]
   photosCount: number
   photosCountOutdated: number
-  onLastPhotoUpload: () => Promise<void>
   blobPhotoUrls: StorageListResponse
+  shouldResize: boolean
+  hasAiTextGeneration: boolean
+  onLastUpload: () => Promise<void>
   infiniteScrollInitial: number
   infiniteScrollMultiple: number
+  timezone: Timezone
 }) {
-  const [isUploading, setIsUploading] = useState(false);
+  const { uploadState: { isUploading } } = useAppState();
 
   return (
     <SiteGrid
       contentMain={
         <div className="space-y-4">
-          <div className="flex">
+          <div className="flex gap-4">
             <div className="grow min-w-0">
-              <PhotoUpload
-                shouldResize={!PRO_MODE_ENABLED}
-                isUploading={isUploading}
-                setIsUploading={setIsUploading}
-                onLastUpload={onLastPhotoUpload}
+              <PhotoUploadWithStatus
+                inputId="admin-photos"
+                shouldResize={shouldResize}
+                onLastUpload={onLastUpload}
               />
             </div>
-            {photosCountOutdated > 0 && <PathLoaderButton
-              path={PATH_ADMIN_OUTDATED}
-              icon={<LiaBroomSolid size={18} className="translate-y-[-1px]" />}
-              title={`${photosCountOutdated} Outdated Photos`}
-              className={clsx(
-                isUploading && 'hidden md:inline-flex',
-              )}
-              hideTextOnMobile={false}
-            >
-              {photosCountOutdated}
-            </PathLoaderButton>}
+            {photosCountOutdated > 0 &&
+              <PathLoaderButton
+                path={PATH_ADMIN_OUTDATED}
+                icon={<LiaBroomSolid
+                  size={18}
+                  className="translate-y-[-1px]"
+                />}
+                title={`${photosCountOutdated} Outdated Photos`}
+                className={clsx(
+                  'text-blue-600 dark:text-blue-400',
+                  'border border-blue-200 dark:border-blue-800/60',
+                  'active:bg-blue-50 dark:active:bg-blue-950/50',
+                  'disabled:bg-blue-50 dark:disabled:bg-blue-950/50',
+                  isUploading && 'hidden md:inline-flex',
+                )}
+                spinnerColor="text"
+                spinnerClassName="text-blue-200 dark:text-blue-600/40"
+                hideTextOnMobile={false}
+              >
+                {photosCountOutdated}
+              </PathLoaderButton>}
           </div>
           {blobPhotoUrls.length > 0 &&
             <div className={clsx(
@@ -73,13 +88,15 @@ export default function AdminPhotosClient({
           <div className="space-y-[6px] sm:space-y-[10px]">
             <AdminPhotosTable
               photos={photos}
-              hasAiTextGeneration={AI_TEXT_GENERATION_ENABLED}
+              hasAiTextGeneration={hasAiTextGeneration}
+              timezone={timezone}
             />
             {photosCount > photos.length &&
               <AdminPhotosTableInfinite
                 initialOffset={infiniteScrollInitial}
                 itemsPerPage={infiniteScrollMultiple}
-                hasAiTextGeneration={AI_TEXT_GENERATION_ENABLED}
+                hasAiTextGeneration={hasAiTextGeneration}
+                timezone={timezone}
               />}
           </div>
         </div>}

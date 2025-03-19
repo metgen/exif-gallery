@@ -4,11 +4,11 @@ import ImagePhotoGrid from './components/ImagePhotoGrid';
 import ImageContainer from './components/ImageContainer';
 import {
   labelForFilmSimulation,
-} from '@/vendors/fujifilm';
+} from '@/platforms/fujifilm/simulation';
 import PhotoFilmSimulationIcon from 
   '@/simulation/PhotoFilmSimulationIcon';
 import { FilmSimulation } from '@/simulation';
-import { NextImageSize } from '@/services/next-image';
+import { NextImageSize } from '@/platforms/next-image';
 
 export default function FilmSimulationImageResponse({
   simulation,
@@ -24,11 +24,7 @@ export default function FilmSimulationImageResponse({
   fontFamily: string
 }) {  
   return (
-    <ImageContainer {...{
-      width,
-      height,
-      ...photos.length === 0 && { background: 'black' },
-    }}>
+    <ImageContainer solidBackground={photos.length === 0}>
       <ImagePhotoGrid
         {...{
           photos,
@@ -45,9 +41,8 @@ export default function FilmSimulationImageResponse({
           height={height * .081}
           style={{ transform: `translateY(${height * .001}px)`}}
         />,
-      }}>
-        {labelForFilmSimulation(simulation).medium.toLocaleUpperCase()}
-      </ImageCaption>
+        title: labelForFilmSimulation(simulation).medium.toLocaleUpperCase(),
+      }} />
     </ImageContainer>
   );
 }

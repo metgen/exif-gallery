@@ -1,10 +1,12 @@
-import { labelForFilmSimulation } from '@/vendors/fujifilm';
+import { labelForFilmSimulation } from '@/platforms/fujifilm/simulation';
 import PhotoFilmSimulationIcon from './PhotoFilmSimulationIcon';
-import { pathForFilmSimulation } from '@/site/paths';
+import { pathForFilmSimulation } from '@/app/paths';
 import { FilmSimulation } from '.';
+import { FujifilmRecipe } from '@/platforms/fujifilm/recipe';
 import EntityLink, {
   EntityLinkExternalProps,
 } from '@/components/primitives/EntityLink';
+import clsx from 'clsx/lite';
 
 export default function PhotoFilmSimulation({
   simulation,
@@ -13,9 +15,11 @@ export default function PhotoFilmSimulation({
   contrast = 'low',
   prefetch,
   countOnHover,
+  className,
 }: {
   simulation: FilmSimulation
   countOnHover?: number
+  recipe?: FujifilmRecipe
 } & EntityLinkExternalProps) {
   const { small, medium, large } = labelForFilmSimulation(simulation);
 
@@ -24,9 +28,18 @@ export default function PhotoFilmSimulation({
       label={medium}
       labelSmall={small}
       href={pathForFilmSimulation(simulation)}
-      icon={<PhotoFilmSimulationIcon simulation={simulation} />}
+      icon={<PhotoFilmSimulationIcon
+        simulation={simulation}
+        className={clsx(
+          contrast === 'frosted' && 'text-black',
+          type === 'icon-only'
+            ? 'translate-y-[-2.5px]'
+            : 'translate-y-[-1px]',
+        )}
+      />}
       title={`Film Simulation: ${large}`}
       type={type}
+      className={className}
       badged={badged}
       contrast={contrast}
       prefetch={prefetch}

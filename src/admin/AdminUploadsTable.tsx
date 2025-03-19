@@ -2,29 +2,34 @@
 
 import ImageSmall from '@/components/image/ImageSmall';
 import Spinner from '@/components/Spinner';
-import { getIdFromStorageUrl } from '@/services/storage';
+import {
+  getIdFromStorageUrl,
+  getExtensionFromStorageUrl,
+} from '@/platforms/storage';
 import { clsx } from 'clsx/lite';
 import { FaRegCircleCheck } from 'react-icons/fa6';
-import { pathForAdminUploadUrl } from '@/site/paths';
+import { pathForAdminUploadUrl } from '@/app/paths';
 import AddButton from './AddButton';
 import { UrlAddStatus } from './AdminUploadsClient';
 import ResponsiveDate from '@/components/ResponsiveDate';
-import DeleteBlobButton from './DeleteBlobButton';
+import DeleteBlobButton from './DeleteUploadButton';
 
 export default function AdminUploadsTable({
   isAdding,
   urlAddStatuses,
   setUrlAddStatuses,
+  isDeleting,
 }: {
   isAdding?: boolean
   urlAddStatuses: UrlAddStatus[]
   setUrlAddStatuses?: (urlAddStatuses: UrlAddStatus[]) => void
+  isDeleting?: boolean
 }) {
   const isComplete = urlAddStatuses.every(({ status }) => status === 'added');
 
   return (
     <div className="space-y-4">
-      {urlAddStatuses.map(({ url, status, statusMessage, uploadedAt }) =>
+      {urlAddStatuses.map(({ url, status, statusMessage, uploadedAt, size }) =>
         <div key={url}>
           <div className={clsx(
             'flex items-center gap-2 w-full min-h-8',
@@ -44,18 +49,21 @@ export default function AdminUploadsTable({
                   'scale-90',
               )}>
                 <ImageSmall
+                  title={getIdFromStorageUrl(url)}
                   src={url}
                   alt={url}
                   aspectRatio={3.0 / 2.0}
                   className={clsx(
                     'rounded-[3px] overflow-hidden',
-                    'border-subtle',
+                    'border-main',
                   )}
                 />
               </div>
               <span className="grow min-w-0">
-                <div className="overflow-hidden text-ellipsis">
-                  {getIdFromStorageUrl(url)}
+                <div className="truncate">
+                  {uploadedAt
+                    ? <ResponsiveDate date={uploadedAt} />
+                    : '—'}
                 </div>
                 <div className="text-dim overflow-hidden text-ellipsis">
                   {isAdding || isComplete
@@ -64,9 +72,10 @@ export default function AdminUploadsTable({
                       : status === 'adding'
                         ? statusMessage ?? 'Adding ...'
                         : 'Waiting'
-                    : uploadedAt
-                      ? <ResponsiveDate date={uploadedAt} />
-                      : '—'}
+                    : size
+                      // eslint-disable-next-line max-len
+                      ? `${size} ${getExtensionFromStorageUrl(url)?.toUpperCase()}`
+                      : getExtensionFromStorageUrl(url)?.toUpperCase()}
                 </div>
               </span>
             </div>
@@ -85,13 +94,17 @@ export default function AdminUploadsTable({
                       </span>}
                 </>
                 : <>
-                  <AddButton path={pathForAdminUploadUrl(url)} />
+                  <AddButton
+                    path={pathForAdminUploadUrl(url)}
+                    disabled={isDeleting}
+                  />
                   <DeleteBlobButton
-                    url={url}
+                    urls={[url]}
                     shouldRedirectToAdminPhotos={urlAddStatuses.length <= 1}
                     onDelete={() => setUrlAddStatuses?.(urlAddStatuses.filter(
                       ({ url: urlToRemove }) => urlToRemove !== url,
                     ))}
+                    isLoading={isDeleting}
                   />
                 </>}
             </span>

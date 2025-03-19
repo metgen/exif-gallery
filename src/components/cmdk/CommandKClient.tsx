@@ -3,6 +3,8 @@
 import { Command } from 'cmdk';
 import {
   ReactNode,
+  SetStateAction,
+  Dispatch,
   useEffect,
   useMemo,
   useRef,
@@ -11,7 +13,9 @@ import {
 } from 'react';
 import {
   PATH_ADMIN_BASELINE,
+  PATH_ADMIN_COMPONENTS,
   PATH_ADMIN_CONFIGURATION,
+  PATH_ADMIN_INSIGHTS,
   PATH_ADMIN_PHOTOS,
   PATH_ADMIN_TAGS,
   PATH_ADMIN_UPLOADS,
@@ -19,39 +23,63 @@ import {
   PATH_GRID_INFERRED,
   PATH_ROOT,
   PATH_SIGN_IN,
+  pathForCamera,
+  pathForFilmSimulation,
+  pathForFocalLength,
+  pathForLens,
   pathForPhoto,
+  pathForRecipe,
   pathForTag,
-} from '../../site/paths';
+} from '../../app/paths';
 import Modal from '../Modal';
 import { clsx } from 'clsx/lite';
 import { useDebounce } from 'use-debounce';
 import Spinner from '../Spinner';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { BiDesktop, BiMoon, BiSun } from 'react-icons/bi';
+import { BiDesktop, BiLockAlt, BiMoon, BiSun } from 'react-icons/bi';
 import { IoInvertModeSharp } from 'react-icons/io5';
 import { useAppState } from '@/state/AppState';
 import { searchPhotosAction } from '@/photo/actions';
 import { RiToolsFill } from 'react-icons/ri';
-import { BiLockAlt, BiSolidUser } from 'react-icons/bi';
+import { BiSolidUser } from 'react-icons/bi';
 import { HiDocumentText } from 'react-icons/hi';
-import { signOutAndRedirectAction } from '@/auth/actions';
-import { TbPhoto } from 'react-icons/tb';
+import { signOutAction } from '@/auth/actions';
 import { getKeywordsForPhoto, titleForPhoto } from '@/photo';
 import PhotoDate from '@/photo/PhotoDate';
 import PhotoSmall from '@/photo/PhotoSmall';
 import { FaCheck } from 'react-icons/fa6';
-import { Tags, addHiddenToTags, formatTag } from '@/tag';
-import { FaTag } from 'react-icons/fa';
+import { addHiddenToTags, formatTag } from '@/tag';
 import { formatCount, formatCountDescriptive } from '@/utility/string';
 import CommandKItem from './CommandKItem';
-import { GRID_HOMEPAGE_ENABLED } from '@/site/config';
+import { CATEGORY_VISIBILITY, GRID_HOMEPAGE_ENABLED } from '@/app/config';
+import { DialogDescription, DialogTitle } from '@radix-ui/react-dialog';
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
+import InsightsIndicatorDot from '@/admin/insights/InsightsIndicatorDot';
+import { PhotoSetCategories } from '@/category';
+import { formatCameraText } from '@/camera';
+import { labelForFilmSimulation } from '@/platforms/fujifilm/simulation';
+import { formatFocalLength } from '@/focal';
+import { formatRecipe } from '@/recipe';
+import IconLens from '../icons/IconLens';
+import { formatLensText } from '@/lens';
+import IconTag from '../icons/IconTag';
+import IconCamera from '../icons/IconCamera';
+import IconPhoto from '../icons/IconPhoto';
+import IconRecipe from '../icons/IconRecipe';
+import IconFocalLength from '../icons/IconFocalLength';
+import IconFilmSimulation from '../icons/IconFilmSimulation';
+import IconLock from '../icons/IconLock';
+
+const DIALOG_TITLE = 'Global Command-K Menu';
+const DIALOG_DESCRIPTION = 'For searching photos, views, and settings';
 
 const LISTENER_KEYDOWN = 'keydown';
 const MINIMUM_QUERY_LENGTH = 2;
 
 type CommandKItem = {
-  label: string
+  label: ReactNode
+  explicitKey?: string
   keywords?: string[]
   accessory?: ReactNode
   annotation?: ReactNode
@@ -60,42 +88,63 @@ type CommandKItem = {
   action?: () => void | Promise<void>
 }
 
-export type CommandKSection = {
+type CommandKSection = {
   heading: string
   accessory?: ReactNode
   items: CommandKItem[]
 }
 
+const renderToggle = (
+  label: string,
+  onToggle?: Dispatch<SetStateAction<boolean>>,
+  isEnabled?: boolean,
+): CommandKItem => ({
+  label: `Toggle ${label}`,
+  action: () => onToggle?.(prev => !prev),
+  annotation: isEnabled ? <FaCheck size={12} /> : undefined,
+});
+
 export default function CommandKClient({
+  cameras,
+  lenses,
   tags,
-  serverSections = [],
+  recipes,
+  simulations,
+  focalLengths,
   showDebugTools,
   footer,
 }: {
-  tags: Tags
-  serverSections?: CommandKSection[]
   showDebugTools?: boolean
   footer?: string
-}) {
+} & PhotoSetCategories) {
   const pathname = usePathname();
 
   const {
     isUserSignedIn,
-    setUserEmail,
+    clearAuthStateAndRedirect,
     isCommandKOpen: isOpen,
-    hiddenPhotosCount,
+    photosCountHidden,
+    uploadsCount,
+    tagsCount,
     selectedPhotoIds,
     setSelectedPhotoIds,
+    insightsIndicatorStatus,
     isGridHighDensity,
+    areZoomControlsShown,
     arePhotosMatted,
     shouldShowBaselineGrid,
     shouldDebugImageFallbacks,
+    shouldDebugInsights,
+    shouldDebugRecipeOverlays,
     setIsCommandKOpen: setIsOpen,
     setShouldRespondToKeyboardCommands,
     setShouldShowBaselineGrid,
     setIsGridHighDensity,
+    setAreZoomControlsShown,
     setArePhotosMatted,
     setShouldDebugImageFallbacks,
+    setShouldDebugInsights,
+    setShouldDebugRecipeOverlays,
   } = useAppState();
 
   const isOpenRef = useRef(isOpen);
@@ -157,11 +206,11 @@ export default function CommandKClient({
             setQueriedSections(photos.length > 0
               ? [{
                 heading: 'Photos',
-                accessory: <TbPhoto size={14} />,
+                accessory: <IconPhoto size={14} />,
                 items: photos.map(photo => ({
                   label: titleForPhoto(photo),
                   keywords: getKeywordsForPhoto(photo),
-                  annotation: <PhotoDate {...{ photo }} />,
+                  annotation: <PhotoDate {...{ photo, timezone: undefined }} />,
                   accessory: <PhotoSmall photo={photo} />,
                   path: pathForPhoto({ photo }),
                 })),
@@ -202,22 +251,84 @@ export default function CommandKClient({
   }, [isOpen, setShouldRespondToKeyboardCommands]);
 
   const tagsIncludingHidden = useMemo(() =>
-    addHiddenToTags(tags, hiddenPhotosCount)
-  , [tags, hiddenPhotosCount]);
+    addHiddenToTags(tags, photosCountHidden)
+  , [tags, photosCountHidden]);
 
-  const SECTION_TAGS: CommandKSection = {
-    heading: 'Tags',
-    accessory: <FaTag
-      size={10}
-      className="translate-x-[1px] translate-y-[0.75px]"
-    />,
-    items: tagsIncludingHidden.map(({ tag, count }) => ({
-      label: formatTag(tag),
-      annotation: formatCount(count),
-      annotationAria: formatCountDescriptive(count),
-      path: pathForTag(tag),
-    })),
-  };
+  const categorySections: CommandKSection[] = useMemo(() =>
+    CATEGORY_VISIBILITY
+      .map(category => {
+        switch (category) {
+        case 'cameras': return {
+          heading: 'Cameras',
+          accessory: <IconCamera size={14} />,
+          items: cameras.map(({ camera, count }) => ({
+            label: formatCameraText(camera),
+            annotation: formatCount(count),
+            annotationAria: formatCountDescriptive(count),
+            path: pathForCamera(camera),
+          })),
+        };
+        case 'lenses': return {
+          heading: 'Lenses',
+          accessory: <IconLens size={14} className="translate-y-[0.5px]" />,
+          items: lenses.map(({ lens, count }) => ({
+            label: formatLensText(lens, 'medium'),
+            explicitKey: formatLensText(lens, 'long'),
+            annotation: formatCount(count),
+            annotationAria: formatCountDescriptive(count),
+            path: pathForLens(lens),
+          })),
+        };
+        case 'tags': return {
+          heading: 'Tags',
+          accessory: <IconTag
+            size={13}
+            className="translate-x-[1px] translate-y-[0.75px]"
+          />,
+          items: tagsIncludingHidden.map(({ tag, count }) => ({
+            label: formatTag(tag),
+            annotation: formatCount(count),
+            annotationAria: formatCountDescriptive(count),
+            path: pathForTag(tag),
+          })),
+        };
+        case 'recipes': return {
+          heading: 'Recipes',
+          accessory: <IconRecipe
+            size={15}
+            className="translate-x-[-1px]"
+          />,
+          items: recipes.map(({ recipe, count }) => ({
+            label: formatRecipe(recipe),
+            annotation: formatCount(count),
+            annotationAria: formatCountDescriptive(count),
+            path: pathForRecipe(recipe),
+          })),
+        };
+        case 'films': return {
+          heading: 'Film Simulations',
+          accessory: <IconFilmSimulation size={14} />,
+          items: simulations.map(({ simulation, count }) => ({
+            label: labelForFilmSimulation(simulation).medium,
+            annotation: formatCount(count),
+            annotationAria: formatCountDescriptive(count),
+            path: pathForFilmSimulation(simulation),
+          })),
+        };
+        case 'focal-lengths': return {
+          heading: 'Focal Lengths',
+          accessory: <IconFocalLength className="text-[14px]" />,
+          items: focalLengths.map(({ focal, count }) => ({
+            label: formatFocalLength(focal)!,
+            annotation: formatCount(count),
+            annotationAria: formatCountDescriptive(count),
+            path: pathForFocalLength(focal),
+          })),
+        };
+        }
+      })
+      .filter(Boolean) as CommandKSection[]
+  , [tagsIncludingHidden, cameras, lenses, recipes, simulations, focalLengths]);
 
   const clientSections: CommandKSection[] = [{
     heading: 'Theme',
@@ -244,25 +355,43 @@ export default function CommandKClient({
     clientSections.push({
       heading: 'Debug Tools',
       accessory: <RiToolsFill size={16} className="translate-x-[-1px]" />,
-      items: [{
-        label: 'Toggle Photo Matting',
-        action: () => setArePhotosMatted?.(prev => !prev),
-        annotation: arePhotosMatted ? <FaCheck size={12} /> : undefined,
-      }, {
-        label: 'Toggle High Density Grid',
-        action: () => setIsGridHighDensity?.(prev => !prev),
-        annotation: isGridHighDensity ? <FaCheck size={12} /> : undefined,
-      }, {
-        label: 'Toggle Image Fallbacks',
-        action: () => setShouldDebugImageFallbacks?.(prev => !prev),
-        annotation: shouldDebugImageFallbacks
-          ? <FaCheck size={12} />
-          : undefined,
-      }, {
-        label: 'Toggle Baseline Grid',
-        action: () => setShouldShowBaselineGrid?.(prev => !prev),
-        annotation: shouldShowBaselineGrid ? <FaCheck size={12} /> : undefined,
-      }],
+      items: [
+        renderToggle(
+          'Zoom Controls',
+          setAreZoomControlsShown,
+          areZoomControlsShown,
+        ),
+        renderToggle(
+          'Photo Matting',
+          setArePhotosMatted,
+          arePhotosMatted,
+        ),
+        renderToggle(
+          'High Density Grid',
+          setIsGridHighDensity,
+          isGridHighDensity,
+        ),
+        renderToggle(
+          'Image Fallbacks',
+          setShouldDebugImageFallbacks,
+          shouldDebugImageFallbacks,
+        ),
+        renderToggle(
+          'Baseline Grid',
+          setShouldShowBaselineGrid,
+          shouldShowBaselineGrid,
+        ),
+        renderToggle(
+          'Insights Debugging',
+          setShouldDebugInsights,
+          shouldDebugInsights,
+        ),
+        renderToggle(
+          'Recipe Overlays',
+          setShouldDebugRecipeOverlays,
+          shouldDebugRecipeOverlays,
+        ),
+      ],
     });
   }
 
@@ -292,63 +421,85 @@ export default function CommandKClient({
   const adminSection: CommandKSection = {
     heading: 'Admin',
     accessory: <BiSolidUser size={15} className="translate-x-[-1px]" />,
-    items: isUserSignedIn
-      ? ([{
-        label: 'Manage Photos',
-        annotation: <BiLockAlt />,
-        path: PATH_ADMIN_PHOTOS,
-      }, {
-        label: 'Manage Uploads',
-        annotation: <BiLockAlt />,
-        path: PATH_ADMIN_UPLOADS,
-      }, {
-        label: 'Manage Tags',
-        annotation: <BiLockAlt />,
-        path: PATH_ADMIN_TAGS,
-      }, {
-        label: 'App Config',
-        annotation: <BiLockAlt />,
-        path: PATH_ADMIN_CONFIGURATION,
-      }, {
-        label: selectedPhotoIds === undefined
-          ? 'Select Multiple Photos'
-          : 'Exit Select Multiple Photos',
-        annotation: <BiLockAlt />,
-        path: selectedPhotoIds === undefined
-          ? PATH_GRID_INFERRED
-          : undefined,
-        action: selectedPhotoIds === undefined
-          ? () => setSelectedPhotoIds?.([])
-          : () => setSelectedPhotoIds?.(undefined),
-      }] as CommandKItem[])
-        .concat(showDebugTools
-          ? [{
-            label: 'Baseline Overview',
-            path: PATH_ADMIN_BASELINE,
-          }]
-          : [])
-        .concat({
-          label: 'Sign Out',
-          action: () => {
-            signOutAndRedirectAction().then(() => setUserEmail?.(undefined));
-          },
-        })
-      : [{
-        label: 'Sign In',
-        path: PATH_SIGN_IN,
-      }],
+    items: [],
   };
+
+  if (isUserSignedIn) {
+    adminSection.items.push({
+      label: 'Manage Photos',
+      annotation: <IconLock narrow />,
+      path: PATH_ADMIN_PHOTOS,
+    });
+    if (uploadsCount) {
+      adminSection.items.push({
+        label: 'Manage Uploads',
+        annotation: <IconLock narrow />,
+        path: PATH_ADMIN_UPLOADS,
+      });
+    }
+    if (tagsCount) {
+      adminSection.items.push({
+        label: 'Manage Tags',
+        annotation: <IconLock narrow />,
+        path: PATH_ADMIN_TAGS,
+      });
+    }
+    adminSection.items.push({
+      label: <span className="flex items-center gap-3">
+        App Insights
+        {insightsIndicatorStatus &&
+          <InsightsIndicatorDot />}
+      </span>,
+      keywords: ['app insights'],
+      annotation: <IconLock narrow />,
+      path: PATH_ADMIN_INSIGHTS,
+    }, {
+      label: 'App Config',
+      annotation: <IconLock narrow />,
+      path: PATH_ADMIN_CONFIGURATION,
+    }, {
+      label: selectedPhotoIds === undefined
+        ? 'Select Multiple Photos'
+        : 'Exit Select Multiple Photos',
+      annotation: <IconLock narrow />,
+      path: selectedPhotoIds === undefined
+        ? PATH_GRID_INFERRED
+        : undefined,
+      action: selectedPhotoIds === undefined
+        ? () => setSelectedPhotoIds?.([])
+        : () => setSelectedPhotoIds?.(undefined),
+    });
+    if (showDebugTools) {
+      adminSection.items.push({
+        label: 'Baseline Overview',
+        annotation: <BiLockAlt />,
+        path: PATH_ADMIN_BASELINE,
+      }, {
+        label: 'Components Overview',
+        annotation: <BiLockAlt />,
+        path: PATH_ADMIN_COMPONENTS,
+      });
+    }
+    adminSection.items.push({
+      label: 'Sign Out',
+      action: () => signOutAction().then(clearAuthStateAndRedirect),
+    });
+  } else {
+    adminSection.items.push({
+      label: 'Sign In',
+      path: PATH_SIGN_IN,
+    });
+  }
 
   return (
     <Command.Dialog
       open={isOpen}
       onOpenChange={setIsOpen}
-      label="Global Command Menu"
       filter={(value, search, keywords) => {
         const searchFormatted = search.trim().toLocaleLowerCase();
         return (
           value.toLocaleLowerCase().includes(searchFormatted) ||
-          keywords?.includes(searchFormatted)
+          keywords?.some(keyword => keyword.includes(searchFormatted))
         ) ? 1 : 0 ;
       }}
       loop
@@ -356,20 +507,29 @@ export default function CommandKClient({
       <Modal
         anchor='top'
         onClose={() => setIsOpen?.(false)}
+        noPadding
         fast
       >
-        <div className="space-y-1.5">
+        <VisuallyHidden.Root>
+          <DialogTitle>{DIALOG_TITLE}</DialogTitle>
+          <DialogDescription>{DIALOG_DESCRIPTION}</DialogDescription>
+        </VisuallyHidden.Root>
+        <div className={clsx(
+          'px-3 md:px-4',
+          'pt-3 md:pt-4',
+        )}>
           <div className="relative">
             <Command.Input
               onChangeCapture={(e) => setQueryLive(e.currentTarget.value)}
               className={clsx(
-                'w-full !min-w-0',
+                'w-full min-w-0!',
                 'focus:ring-0',
-                isPlaceholderVisible || isLoading && '!pr-8',
-                '!border-gray-200 dark:!border-gray-800',
-                'focus:border-gray-200 focus:dark:border-gray-800',
+                isPlaceholderVisible || isLoading && 'pr-10!',
+                'border-gray-200! dark:border-gray-800!',
+                'focus:border-gray-200 dark:focus:border-gray-800',
                 'placeholder:text-gray-400/80',
-                'placeholder:dark:text-gray-700',
+                'dark:placeholder:text-gray-700',
+                'focus:outline-hidden',
                 isPending && 'opacity-20',
               )}
               placeholder="Search photos, views, settings ..."
@@ -377,22 +537,29 @@ export default function CommandKClient({
             />
             {isLoading && !isPending &&
               <span className={clsx(
-                'absolute top-2.5 right-0 w-8',
+                'absolute top-2 right-0 w-10',
                 'flex items-center justify-center translate-y-[2px]',
               )}>
                 <Spinner size={16} />
               </span>}
           </div>
-          <Command.List className={clsx(
-            'relative overflow-y-auto',
-            'max-h-48 sm:max-h-72',
-          )}>
-            <Command.Empty className="mt-1 pl-3 text-dim">
-              {isLoading ? 'Searching ...' : 'No results found'}
-            </Command.Empty>
+        </div>
+        <Command.List className={clsx(
+          'relative overflow-y-auto',
+          'max-h-48 sm:max-h-72',
+          'mx-3 md:mx-4',
+          'pt-3 md:pt-4',
+          'pb-4 md:pb-5',
+        )} style={{
+          // eslint-disable-next-line max-len
+          maskImage: 'linear-gradient(to bottom, transparent, black 20px, black calc(100% - 20px), transparent)',
+        }}>
+          <Command.Empty className="mt-1 pl-3 text-dim">
+            {isLoading ? 'Searching ...' : 'No results found'}
+          </Command.Empty>
+          <div className="space-y-2.5">
             {queriedSections
-              .concat(SECTION_TAGS)
-              .concat(serverSections)
+              .concat(categorySections)
               .concat(sectionPages)
               .concat(adminSection)
               .concat(clientSections)
@@ -402,7 +569,7 @@ export default function CommandKClient({
                   key={heading}
                   heading={<div className={clsx(
                     'flex items-center',
-                    'px-2',
+                    'px-2 pb-0.5',
                     isPending && 'opacity-20',
                   )}>
                     {accessory &&
@@ -421,6 +588,7 @@ export default function CommandKClient({
                 >
                   {items.map(({
                     label,
+                    explicitKey,
                     keywords,
                     accessory,
                     annotation,
@@ -428,7 +596,7 @@ export default function CommandKClient({
                     path,
                     action,
                   }) => {
-                    const key = `${heading} ${label}`;
+                    const key = `${heading} ${explicitKey ?? label}`;
                     return <CommandKItem
                       key={key}
                       label={label}
@@ -442,7 +610,7 @@ export default function CommandKClient({
                         if (path) {
                           if (path !== pathname) {
                             setKeyPending(key);
-                            startTransition(async () => {
+                            startTransition(() => {
                               shouldCloseAfterPending.current = true;
                               router.push(path, { scroll: true });
                             });
@@ -459,12 +627,12 @@ export default function CommandKClient({
                     />;
                   })}
                 </Command.Group>)}
-            {footer && !queryLive &&
-              <div className="text-center text-dim pt-3 sm:pt-4">
-                {footer}
-              </div>}
-          </Command.List>
-        </div>
+          </div>
+          {footer && !queryLive &&
+            <div className="text-center text-base text-dim pt-3 sm:pt-4">
+              {footer}
+            </div>}
+        </Command.List>
       </Modal>
     </Command.Dialog>
   );

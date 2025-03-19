@@ -1,12 +1,13 @@
-import AdminCTA from '@/admin/AdminCTA';
 import Container from '@/components/Container';
 import SiteGrid from '@/components/SiteGrid';
-import { IS_SITE_READY } from '@/site/config';
-import { PATH_ADMIN_CONFIGURATION } from '@/site/paths';
-import SiteChecklist from '@/site/SiteChecklist';
+import { IS_SITE_READY, PRESERVE_ORIGINAL_UPLOADS } from '@/app/config';
+import AdminAppConfiguration from '@/admin/AdminAppConfiguration';
 import { clsx } from 'clsx/lite';
-import Link from 'next/link';
 import { HiOutlinePhotograph } from 'react-icons/hi';
+import { revalidatePath } from 'next/cache';
+import SignInOrUploadClient from '@/admin/SignInOrUploadClient';
+import Link from 'next/link';
+import { PATH_ADMIN_CONFIGURATION } from '@/app/paths';
 
 export default function PhotosEmptyState() {
   return (
@@ -27,16 +28,18 @@ export default function PhotosEmptyState() {
             {!IS_SITE_READY ? 'Finish Setup' : 'Setup Complete!'}
           </div>
           {!IS_SITE_READY
-            ? <SiteChecklist simplifiedView />
+            ? <AdminAppConfiguration simplifiedView />
             : <div className="max-w-md text-center space-y-6">
-              <div className="space-y-2">
-                <div>
-                  Add your first photo:
-                </div>
-                <AdminCTA />
-              </div>
+              <SignInOrUploadClient
+                shouldResize={!PRESERVE_ORIGINAL_UPLOADS}
+                onLastUpload={async () => {
+                  'use server';
+                  // Update upload count in admin nav
+                  revalidatePath('/admin', 'layout');
+                }}
+              />
               <div>
-                Change the name of this blog and other configuration
+                Change this site&apos;s name and other configuration
                 by editing environment variables referenced in
                 {' '}
                 <Link

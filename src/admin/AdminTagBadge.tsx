@@ -19,6 +19,7 @@ export default function AdminTagBadge({
       'inline-flex items-center gap-2',
       // Fix nested EntityLink-in-Badge quirk for tags
       '[&>*>*:first-child]:items-center',
+      isTagFavs(tag) && 'translate-y-[0.5px]',
     )}>
       {isTagFavs(tag)
         ? <FavsTag />
@@ -35,6 +36,6 @@ export default function AdminTagBadge({
   return (
     hideBadge
       ? renderBadgeContent()
-      : <Badge className="!py-[3px]">{renderBadgeContent()}</Badge>
+      : <Badge className="py-[3px]!">{renderBadgeContent()}</Badge>
   );
 }

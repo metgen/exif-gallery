@@ -1,28 +1,33 @@
 'use client';
 
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, RefObject, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx/lite';
 import useClickInsideOutside from '@/utility/useClickInsideOutside';
 import { useRouter } from 'next/navigation';
 import AnimateItems from './AnimateItems';
-import { PATH_ROOT } from '@/site/paths';
+import { PATH_ROOT } from '@/app/paths';
 import usePrefersReducedMotion from '@/utility/usePrefersReducedMotion';
-import useMetaThemeColor from '@/site/useMetaThemeColor';
+import useMetaThemeColor from '@/utility/useMetaThemeColor';
+import useEscapeHandler from '@/utility/useEscapeHandler';
 
 export default function Modal({
   onClosePath,
   onClose,
   className,
   anchor = 'center',
+  container = true,
   children,
+  noPadding,
   fast,
 }: {
   onClosePath?: string
   onClose?: () => void
   className?: string
   anchor?: 'top' | 'center'
+  container?: boolean
   children: ReactNode
+  noPadding?: boolean
   fast?: boolean
 }) {
   const router = useRouter();
@@ -31,11 +36,12 @@ export default function Modal({
 
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const [htmlElements, setHtmlElements] = useState<HTMLDivElement[]>([]);
+  const [htmlElements, setHtmlElements] =
+    useState<RefObject<HTMLDivElement | null>[]>([]);
 
   useEffect(() => {
     if (contentRef.current) {
-      setHtmlElements([contentRef.current]);
+      setHtmlElements([contentRef]);
     }
   }, []);
 
@@ -54,6 +60,8 @@ export default function Modal({
       }
     },
   });
+
+  useEscapeHandler(onClose, true);
 
   return (
     <motion.div
@@ -76,11 +84,11 @@ export default function Modal({
           ref={contentRef}
           key="modalContent"
           className={clsx(
-            'w-[calc(100vw-1.5rem)] sm:w-[min(540px,90vw)]',
-            'p-3 rounded-lg',
-            'md:p-4 md:rounded-xl',
+            container && 'w-[calc(100vw-1.5rem)] sm:w-[min(540px,90vw)]',
+            container && !noPadding && 'p-3 md:p-4',
+            container && 'rounded-lg md:rounded-xl',
+            container && 'dark:border dark:border-gray-800',
             'bg-white dark:bg-black',
-            'dark:border dark:border-gray-800',
             className,
           )}
         >

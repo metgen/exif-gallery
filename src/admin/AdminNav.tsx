@@ -1,14 +1,16 @@
-import { getStorageUploadUrlsNoStore } from '@/services/storage/cache';
+import { getStorageUploadUrlsNoStore } from '@/platforms/storage/cache';
 import {
   getPhotosMetaCached,
   getPhotosMostRecentUpdateCached,
+  getUniqueRecipesCached,
   getUniqueTagsCached,
 } from '@/photo/cache';
 import {
   PATH_ADMIN_PHOTOS,
+  PATH_ADMIN_RECIPES,
   PATH_ADMIN_TAGS,
   PATH_ADMIN_UPLOADS,
-} from '@/site/paths';
+} from '@/app/paths';
 import AdminNavClient from './AdminNavClient';
 
 export default async function AdminNav() {
@@ -16,6 +18,7 @@ export default async function AdminNav() {
     countPhotos,
     countUploads,
     countTags,
+    countRecipes,
     mostRecentPhotoUpdateTime,
   ] = await Promise.all([
     getPhotosMetaCached({ hidden: 'include' })
@@ -27,9 +30,14 @@ export default async function AdminNav() {
         console.error(`Error getting blob upload urls: ${e}`);
         return 0;
       }),
-    getUniqueTagsCached().then(tags => tags.length).catch(() => 0),
+    getUniqueTagsCached().then(tags => tags.length)
+      .catch(() => 0),
+    getUniqueRecipesCached().then(recipes => recipes.length)
+      .catch(() => 0),
     getPhotosMostRecentUpdateCached().catch(() => undefined),
   ]);
+
+  const includeInsights = countPhotos > 0;
 
   // Photos
   const items = [{
@@ -52,7 +60,18 @@ export default async function AdminNav() {
     count: countTags,
   }); }
 
+  // Recipes
+  if (countRecipes > 0) { items.push({
+    label: 'Recipes',
+    href: PATH_ADMIN_RECIPES,
+    count: countRecipes,
+  }); }
+
   return (
-    <AdminNavClient {...{ items, mostRecentPhotoUpdateTime }} />
+    <AdminNavClient {...{
+      items,
+      mostRecentPhotoUpdateTime,
+      includeInsights,
+    }} />
   );
 }

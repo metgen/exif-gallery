@@ -1,13 +1,19 @@
-import { ReactNode } from 'react';
+'use client';
+
+import { ComponentProps, ReactNode } from 'react';
 import LabeledIcon, { LabeledIconType } from './LabeledIcon';
 import Badge from '../Badge';
 import { clsx } from 'clsx/lite';
+import LinkWithStatus from '../LinkWithStatus';
+import Spinner from '../Spinner';
+import ResponsiveText from './ResponsiveText';
 
 export interface EntityLinkExternalProps {
   type?: LabeledIconType
   badged?: boolean
-  contrast?: 'low' | 'medium' | 'high'
+  contrast?: ComponentProps<typeof Badge>['contrast']
   prefetch?: boolean
+  className?: string
 }
 
 export default function EntityLink({
@@ -18,10 +24,14 @@ export default function EntityLink({
   type,
   badged,
   contrast = 'medium',
-  href,
+  href = '', // Make link optional for debugging purposes
   prefetch,
   title,
   hoverEntity,
+  truncate = true,
+  className,
+  classNameIcon,
+  uppercase,
   debug,
 }: {
   icon: ReactNode
@@ -32,6 +42,10 @@ export default function EntityLink({
   prefetch?: boolean
   title?: string
   hoverEntity?: ReactNode
+  truncate?: boolean
+  className?: string
+  classNameIcon?: string
+  uppercase?: boolean
   debug?: boolean
 } & EntityLinkExternalProps) {
   const classForContrast = () => {
@@ -40,51 +54,74 @@ export default function EntityLink({
       return 'text-dim';
     case 'high':
       return 'text-main';
+    case 'frosted':
+      return 'text-black';
     default:
       return 'text-medium';
     }
   };
 
-  const renderLabel = () => <>
-    <span className="xs:hidden">
-      {labelSmall ?? label}
-    </span>
-    <span className="hidden xs:inline-block">
+  const renderLabel =
+    <ResponsiveText shortText={labelSmall}>
       {label}
-    </span>
-  </>;
+    </ResponsiveText>;
 
   return (
-    <span className="group inline-flex gap-2">
-      <LabeledIcon {...{
-        icon,
-        iconWide,
-        href,
-        prefetch,
-        title,
-        type,
-        className: clsx(
-          classForContrast(),
-          href && !badged && 'hover:text-gray-900 dark:hover:text-gray-100',
-        ),
-        debug,
-      }}>
-        {badged
-          ? <Badge
-            type="small"
-            highContrast={contrast === 'high'}
-            className='translate-y-[-0.5px]'
-            uppercase
-            interactive
-          >
-            {renderLabel()}
-          </Badge>
-          : renderLabel()}
-      </LabeledIcon>
-      {hoverEntity !== undefined &&
-        <span className="hidden group-hover:inline">
-          {hoverEntity}
-        </span>}
+    <span className={clsx(
+      'group inline-flex max-w-full overflow-hidden',
+      className,
+    )}>
+      <LinkWithStatus
+        href={href}
+        className="inline-flex items-center gap-2 max-w-full"
+      >
+        {({ isLoading }) => <>
+          <LabeledIcon {...{
+            icon,
+            iconWide,
+            href,
+            prefetch,
+            title,
+            type,
+            uppercase,
+            className: clsx(
+              classForContrast(),
+              href && !badged && 'hover:text-gray-900 dark:hover:text-gray-100',
+              classNameIcon,
+            ),
+            classNameIcon: 'text-dim',
+            debug,
+          }}>
+            {badged
+              ? <Badge
+                type="small"
+                contrast={contrast}
+                className='translate-y-[-0.5px]'
+                uppercase
+                interactive
+              >
+                {renderLabel}
+              </Badge>
+              : <span className={clsx(
+                truncate && 'inline-flex max-w-full *:truncate',
+              )}>
+                {renderLabel}
+              </span>}
+          </LabeledIcon>
+          {!isLoading && hoverEntity !== undefined &&
+            <span className="hidden group-hover:inline text-dim">
+              {hoverEntity}
+            </span>}
+          {isLoading &&
+            <Spinner
+              className={clsx(
+                badged && 'translate-y-[0.5px]',
+                contrast === 'frosted' && 'text-neutral-500',
+              )}
+              color={contrast === 'frosted' ? 'text' : undefined}
+            />}
+        </>}
+      </LinkWithStatus>
     </span>
   );
 }

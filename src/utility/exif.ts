@@ -7,7 +7,7 @@ export const getOffsetFromExif = (data: ExifData) =>
   Object.values(data.tags as any)
     .find((value: any) =>
       typeof value === 'string' &&
-      OFFSET_REGEX.test(value)
+      OFFSET_REGEX.test(value),
     ) as string | undefined;
 
 export const getAspectRatioFromExif = (data: ExifData): number => {
@@ -32,7 +32,7 @@ export const getAspectRatioFromExif = (data: ExifData): number => {
 };
 
 export const convertApertureValueToFNumber = (
-  apertureValue?: string
+  apertureValue?: string,
 ): string | undefined => {
   if (apertureValue) {
     const aperture = parseInt(apertureValue);
@@ -67,7 +67,7 @@ export const formatAperture = (aperture?: number) =>
     : undefined;
 
 export const formatIso = (iso?: number) =>
-  iso ? `ISO ${iso.toLocaleString()}` : undefined;
+  iso ? `ISO ${iso}` : undefined;
 
 export const formatExposureTime = (exposureTime = 0) =>
   exposureTime > 0
@@ -86,3 +86,41 @@ export const formatExposureCompensation = (exposureCompensation?: number) => {
     return undefined;
   }
 };
+
+const SOS = 0xffda;
+const APP1 = 0xffe1;
+const EXIF = 0x45786966;
+
+const retrieveExif = (blob: Blob): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', e => {
+      const buffer = e.target!.result as ArrayBuffer;
+      const view = new DataView(buffer);
+      let offset = 0;
+      if (view.getUint16(offset) !== 0xffd8)
+        return reject('not a valid jpeg');
+      offset += 2;
+
+      while (true) {
+        const marker = view.getUint16(offset);
+        if (marker === SOS) break;
+        const size = view.getUint16(offset + 2);
+        if (marker === APP1 && view.getUint32(offset + 4) === EXIF)
+          return resolve(blob.slice(offset, offset + 2 + size));
+        offset += 2 + size;
+      }
+      return resolve(new Blob());
+    });
+    reader.readAsArrayBuffer(blob);
+  });
+
+export const CopyExif = async (
+  src: Blob,
+  dest: Blob,
+  type = 'image/jpeg',
+) => {
+  const exif = await retrieveExif(src);
+  return new Blob([dest.slice(0, 2), exif, dest.slice(2)], { type });
+};
+

@@ -1,26 +1,28 @@
 import { AiFillApple } from 'react-icons/ai';
-import { pathForCamera } from '@/site/paths';
-import { IoMdCamera } from 'react-icons/io';
+import { pathForCamera } from '@/app/paths';
 import { Camera, formatCameraText } from '.';
 import EntityLink, {
   EntityLinkExternalProps,
 } from '@/components/primitives/EntityLink';
+import IconCamera from '@/components/icons/IconCamera';
+import { isCameraApple } from '@/platforms/apple';
 
 export default function PhotoCamera({
   camera,
   hideAppleIcon,
-  type = 'icon-first',
+  type,
   badged,
   contrast,
   prefetch,
   countOnHover,
+  className,
 }: {
   camera: Camera
   hideAppleIcon?: boolean
   countOnHover?: number
 } & EntityLinkExternalProps) {
-  const isCameraApple = camera.make?.toLowerCase() === 'apple';
-  const showAppleIcon = !hideAppleIcon && isCameraApple;
+  const isApple = isCameraApple(camera);
+  const showAppleIcon = !hideAppleIcon && isApple;
 
   return (
     <EntityLink
@@ -29,14 +31,15 @@ export default function PhotoCamera({
       icon={showAppleIcon
         ? <AiFillApple
           title="Apple"
-          className="translate-x-[-0.5px]"
+          className="translate-x-[-1px] translate-y-[-0.5px]"
           size={15}
         />
-        : <IoMdCamera
-          size={12}
-          className="translate-x-[-1px]"
+        : <IconCamera
+          size={15}
+          className="translate-x-[-0.5px]"
         />}
-      type={showAppleIcon && isCameraApple ? 'icon-first' : type}
+      type={type}
+      className={className}
       badged={badged}
       contrast={contrast}
       prefetch={prefetch}

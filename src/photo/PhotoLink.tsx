@@ -1,24 +1,22 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { Photo, PhotoSetAttributes, titleForPhoto } from '@/photo';
+import { Photo, titleForPhoto } from '@/photo';
+import { PhotoSetCategory } from '@/category';
 import Link from 'next/link';
 import { AnimationConfig } from '../components/AnimateItems';
 import { useAppState } from '@/state/AppState';
-import { pathForPhoto } from '@/site/paths';
+import { pathForPhoto } from '@/app/paths';
 import { clsx } from 'clsx/lite';
 
 export default function PhotoLink({
   photo,
-  tag,
-  camera,
-  simulation,
-  focal,
   scroll,
   prefetch,
   nextPhotoAnimation,
   className,
   children,
+  ...categories
 }: {
   photo?: Photo
   scroll?: boolean
@@ -26,13 +24,13 @@ export default function PhotoLink({
   nextPhotoAnimation?: AnimationConfig
   className?: string
   children?: ReactNode
-} & PhotoSetAttributes) {
+} & PhotoSetCategory) {
   const { setNextPhotoAnimation } = useAppState();
   
   return (
     photo
       ? <Link
-        href={pathForPhoto({ photo, tag, camera, simulation, focal })}
+        href={pathForPhoto({ photo, ...categories })}
         prefetch={prefetch}
         onClick={() => {
           if (nextPhotoAnimation) {

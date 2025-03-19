@@ -16,6 +16,7 @@ import {
   getPhotosMeta,
   getUniqueFocalLengths,
   getUniqueLenses,
+  getUniqueRecipes,
 } from '@/photo/db/query';
 import { GetPhotosOptions } from './db';
 import { parseCachedPhotoDates, parseCachedPhotosDates } from '@/photo';
@@ -29,19 +30,23 @@ import {
   PATH_ROOT,
   PREFIX_CAMERA,
   PREFIX_FILM_SIMULATION,
+  PREFIX_FOCAL_LENGTH,
+  PREFIX_LENS,
+  PREFIX_RECIPE,
   PREFIX_TAG,
   pathForPhoto,
-} from '@/site/paths';
+} from '@/app/paths';
 import { createLensKey } from '@/lens';
 
 // Table key
 const KEY_PHOTOS            = 'photos';
 const KEY_PHOTO             = 'photo';
 // Field keys
-const KEY_TAGS              = 'tags';
 const KEY_CAMERAS           = 'cameras';
 const KEY_LENSES            = 'lenses';
+const KEY_TAGS              = 'tags';
 const KEY_FILM_SIMULATIONS  = 'film-simulations';
+const KEY_RECIPES           = 'recipes';
 const KEY_FOCAL_LENGTHS     = 'focal-lengths';
 // Type keys
 const KEY_COUNT             = 'count';
@@ -81,7 +86,7 @@ const getPhotosCacheKeys = (options: GetPhotosOptions = {}) => {
   Object.keys(options).forEach(key => {
     const tag = getPhotosCacheKeyForOption(
       options,
-      key as keyof GetPhotosOptions
+      key as keyof GetPhotosOptions,
     );
     if (tag) { tags.push(tag); }
   });
@@ -95,17 +100,29 @@ export const revalidatePhotosKey = () =>
 export const revalidateTagsKey = () =>
   revalidateTag(KEY_TAGS);
 
+export const revalidateRecipesKey = () =>
+  revalidateTag(KEY_RECIPES);
+
 export const revalidateCamerasKey = () =>
   revalidateTag(KEY_CAMERAS);
 
+export const revalidateLensesKey = () =>
+  revalidateTag(KEY_LENSES);
+
 export const revalidateFilmSimulationsKey = () =>
   revalidateTag(KEY_FILM_SIMULATIONS);
+
+export const revalidateFocalLengthsKey = () =>
+  revalidateTag(KEY_FOCAL_LENGTHS);
 
 export const revalidateAllKeys = () => {
   revalidatePhotosKey();
   revalidateTagsKey();
   revalidateCamerasKey();
+  revalidateLensesKey();
   revalidateFilmSimulationsKey();
+  revalidateRecipesKey();
+  revalidateFocalLengthsKey();
 };
 
 export const revalidateAdminPaths = () => {
@@ -122,7 +139,10 @@ export const revalidatePhoto = (photoId: string) => {
   revalidateTag(photoId);
   revalidateTagsKey();
   revalidateCamerasKey();
+  revalidateLensesKey();
   revalidateFilmSimulationsKey();
+  revalidateRecipesKey();
+  revalidateFocalLengthsKey();
   // Paths
   revalidatePath(pathForPhoto({ photo: photoId }), 'layout');
   revalidatePath(PATH_ROOT, 'layout');
@@ -130,7 +150,10 @@ export const revalidatePhoto = (photoId: string) => {
   revalidatePath(PATH_FEED, 'layout');
   revalidatePath(PREFIX_TAG, 'layout');
   revalidatePath(PREFIX_CAMERA, 'layout');
+  revalidatePath(PREFIX_LENS, 'layout');
   revalidatePath(PREFIX_FILM_SIMULATION, 'layout');
+  revalidatePath(PREFIX_RECIPE, 'layout');
+  revalidatePath(PREFIX_FOCAL_LENGTH, 'layout');
   revalidatePath(PATH_ADMIN, 'layout');
 };
 
@@ -181,7 +204,7 @@ export const getPhotosMostRecentUpdateCached =
 export const getPhotoCached = (...args: Parameters<typeof getPhoto>) =>
   unstable_cache(
     getPhoto,
-    [KEY_PHOTOS, KEY_PHOTO]
+    [KEY_PHOTOS, KEY_PHOTO],
   )(...args).then(photo => photo ? parseCachedPhotoDates(photo) : undefined);
 
 export const getUniqueTagsCached =
@@ -193,25 +216,31 @@ export const getUniqueTagsCached =
 export const getUniqueTagsHiddenCached =
   unstable_cache(
     getUniqueTagsHidden,
-    [KEY_PHOTOS, KEY_TAGS, KEY_HIDDEN]
+    [KEY_PHOTOS, KEY_TAGS, KEY_HIDDEN],
   );
 
 export const getUniqueCamerasCached =
   unstable_cache(
     getUniqueCameras,
-    [KEY_PHOTOS, KEY_CAMERAS]
+    [KEY_PHOTOS, KEY_CAMERAS],
   );
 
 export const getUniqueLensesCached =
   unstable_cache(
     getUniqueLenses,
-    [KEY_PHOTOS, KEY_LENSES]
+    [KEY_PHOTOS, KEY_LENSES],
   );
 
 export const getUniqueFilmSimulationsCached =
   unstable_cache(
     getUniqueFilmSimulations,
     [KEY_PHOTOS, KEY_FILM_SIMULATIONS],
+  );
+
+export const getUniqueRecipesCached =
+  unstable_cache(
+    getUniqueRecipes,
+    [KEY_PHOTOS, KEY_RECIPES],
   );
 
 export const getUniqueFocalLengthsCached =

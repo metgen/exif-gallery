@@ -2,7 +2,7 @@ import {
   sql,
   query,
   convertArrayToPostgresString,
-} from '@/services/postgres';
+} from '@/platforms/postgres';
 import {
   PhotoDb,
   PhotoDbInsert,
@@ -14,7 +14,7 @@ import {
 import { Cameras, createCameraKey } from '@/camera';
 import { Tags } from '@/tag';
 import { FilmSimulation, FilmSimulations } from '@/simulation';
-import { SHOULD_DEBUG_SQL } from '@/site/config';
+import { ADMIN_SQL_DEBUG_ENABLED } from '@/app/config';
 import {
   GetPhotosOptions,
   getLimitAndOffsetFromOptions,
@@ -23,6 +23,10 @@ import {
 import { getWheresFromOptions } from '.';
 import { FocalLengths } from '@/focal';
 import { Lenses, createLensKey } from '@/lens';
+import { migrationForError } from './migration';
+import { UPDATED_BEFORE_01, UPDATED_BEFORE_02 } from '../outdated';
+import { MAKE_FUJIFILM } from '@/platforms/fujifilm';
+import { Recipes } from '@/recipe';
 
 const createPhotosTable = () =>
   sql`
@@ -50,6 +54,8 @@ const createPhotosTable = () =>
       latitude DOUBLE PRECISION,
       longitude DOUBLE PRECISION,
       film_simulation VARCHAR(255),
+      recipe_title VARCHAR(255),
+      recipe_data JSONB,
       priority_order REAL,
       taken_at TIMESTAMP WITH TIME ZONE NOT NULL,
       taken_at_naive VARCHAR(255) NOT NULL,
@@ -59,28 +65,11 @@ const createPhotosTable = () =>
     )
   `;
 
-// Migration 01
-const MIGRATION_FIELDS_01 = ['caption', 'semantic_description'];
-const runMigration01 = () =>
-  sql`
-    ALTER TABLE photos
-    ADD COLUMN IF NOT EXISTS caption TEXT,
-    ADD COLUMN IF NOT EXISTS semantic_description TEXT
-  `;
-
-// Migration 02
-const MIGRATION_FIELDS_02 = ['lens_make', 'lens_model'];
-const runMigration02 = () =>
-  sql`
-    ALTER TABLE photos
-    ADD COLUMN IF NOT EXISTS lens_make VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS lens_model VARCHAR(255)
-  `;
-
 // Wrapper for most queries for JIT table creation/migration running
 const safelyQueryPhotos = async <T>(
   callback: () => Promise<T>,
-  debugMessage: string
+  debugMessage: string,
+  debugInfo?: GetPhotosOptions,
 ): Promise<T> => {
   let result: T;
 
@@ -89,20 +78,24 @@ const safelyQueryPhotos = async <T>(
   try {
     result = await callback();
   } catch (e: any) {
-    if (MIGRATION_FIELDS_01.some(field => new RegExp(
-      `column "${field}" of relation "photos" does not exist`,
-      'i',
-    ).test(e.message))) {
-      console.log('Running migration 01 ...');
-      await runMigration01();
-      result = await callback();
-    } else if (MIGRATION_FIELDS_02.some(field => new RegExp(
-      `column "${field}" of relation "photos" does not exist`,
-      'i',
-    ).test(e.message))) {
-      console.log('Running migration 02 ...');
-      await runMigration02();
-      result = await callback();
+    let migration = migrationForError(e);
+    if (migration) {
+      console.log(`Running Migration ${migration.label} ...`);
+      await migration.run();
+      try {
+        result = await callback();
+      } catch (e: any) {
+        // Catch potential second migration,
+        // which otherwise would not be caught
+        migration = migrationForError(e);
+        if (migration) {
+          console.log(`Running Migration ${migration.label} ...`);
+          await migration.run();
+          result = await callback();
+        } else {
+          throw e;
+        }
+      }
     } else if (/relation "photos" does not exist/i.test(e.message)) {
       // If the table does not exist, create it
       console.log('Creating photos table ...');
@@ -127,10 +120,15 @@ const safelyQueryPhotos = async <T>(
     }
   }
 
-  if (SHOULD_DEBUG_SQL && debugMessage) {
+  if (ADMIN_SQL_DEBUG_ENABLED && debugMessage) {
     const time =
       (((new Date()).getTime() - start.getTime()) / 1000).toFixed(2);
-    console.log(`Executing sql query: ${debugMessage} (${time} seconds)`);
+    const message = `Debug query: ${debugMessage} (${time} seconds)`;
+    if (debugInfo) {
+      console.log(message, { options: debugInfo });
+    } else {
+      console.log(message);
+    }
   }
 
   return result;
@@ -163,6 +161,8 @@ export const insertPhoto = (photo: PhotoDbInsert) =>
       latitude,
       longitude,
       film_simulation,
+      recipe_title,
+      recipe_data,
       priority_order,
       hidden,
       taken_at,
@@ -192,6 +192,8 @@ export const insertPhoto = (photo: PhotoDbInsert) =>
       ${photo.latitude},
       ${photo.longitude},
       ${photo.filmSimulation},
+      ${photo.recipeTitle},
+      ${photo.recipeData},
       ${photo.priorityOrder},
       ${photo.hidden},
       ${photo.takenAt},
@@ -224,6 +226,8 @@ export const updatePhoto = (photo: PhotoDbInsert) =>
     latitude=${photo.latitude},
     longitude=${photo.longitude},
     film_simulation=${photo.filmSimulation},
+    recipe_title=${photo.recipeTitle},
+    recipe_data=${photo.recipeData},
     priority_order=${photo.priorityOrder || null},
     hidden=${photo.hidden},
     taken_at=${photo.takenAt},
@@ -260,6 +264,23 @@ export const addTagsToPhotos = (tags: string[], photoIds: string[]) =>
     convertArrayToPostgresString(tags),
     convertArrayToPostgresString(photoIds),
   ]), 'addTagsToPhotos');
+
+export const deletePhotoRecipeGlobally = (recipe: string) =>
+  safelyQueryPhotos(() => sql`
+    UPDATE photos
+    SET recipe_title=NULL
+    WHERE recipe_title=${recipe}
+  `, 'deletePhotoRecipeGlobally');
+
+export const renamePhotoRecipeGlobally = (
+  recipe: string,
+  updatedRecipe: string,
+) =>
+  safelyQueryPhotos(() => sql`
+    UPDATE photos
+    SET recipe_title=${updatedRecipe}
+    WHERE recipe_title=${recipe}
+  `, 'renamePhotoRecipeGlobally');
 
 export const deletePhoto = (id: string) =>
   safelyQueryPhotos(() => sql`
@@ -319,7 +340,6 @@ export const getUniqueLenses = async () =>
     lens_make, lens_model, COUNT(*)
     FROM photos
     WHERE hidden IS NOT TRUE
-    AND trim(lens_make) <> ''
     AND trim(lens_model) <> ''
     GROUP BY lens_make, lens_model
     ORDER BY lens ASC
@@ -329,7 +349,64 @@ export const getUniqueLenses = async () =>
         lens: { make, model },
         count: parseInt(count, 10),
       })))
-  , 'getUniqueCameras');
+  , 'getUniqueLenses');
+
+export const getUniqueRecipes = async () =>
+  safelyQueryPhotos(() => sql`
+    SELECT DISTINCT recipe_title, COUNT(*)
+    FROM photos
+    WHERE hidden IS NOT TRUE AND recipe_title IS NOT NULL
+    GROUP BY recipe_title
+    ORDER BY recipe_title ASC
+  `.then(({ rows }): Recipes => rows
+      .map(({ recipe_title, count }) => ({
+        recipe: recipe_title,
+        count: parseInt(count, 10),
+      })))
+  , 'getUniqueRecipes');
+
+export const getRecipeTitleForData = async (
+  data: string | object,
+  simulation: FilmSimulation,
+) =>
+  // Includes legacy check on pre-stringified JSON
+  safelyQueryPhotos(() => sql`
+    SELECT recipe_title FROM photos
+    WHERE hidden IS NOT TRUE
+    AND recipe_data=${typeof data === 'string' ? data : JSON.stringify(data)}
+    AND film_simulation=${simulation}
+    LIMIT 1
+  `
+    .then(({ rows }) => rows[0]?.recipe_title as string | undefined)
+  , 'getRecipeTitleForData');
+
+export const getPhotosNeedingRecipeTitleCount = async (
+  data: string,
+  simulation: FilmSimulation,
+  photoIdToExclude?: string,
+) =>
+  safelyQueryPhotos(() => sql`
+    SELECT COUNT(*)
+    FROM photos
+    WHERE recipe_title IS NULL
+    AND recipe_data=${data}
+    AND film_simulation=${simulation}
+    AND id <> ${photoIdToExclude}
+  `.then(({ rows }) => parseInt(rows[0].count, 10))
+  , 'getPhotosNeedingRecipeTitleCount');
+
+export const updateAllMatchingRecipeTitles = (
+  title: string,
+  data: string,
+  simulation: FilmSimulation,
+) =>
+  safelyQueryPhotos(() => sql`
+    UPDATE photos
+    SET recipe_title=${title}
+    WHERE recipe_title IS NULL
+    AND recipe_data=${data}
+    AND film_simulation=${simulation}
+  `, 'updateAllMatchingRecipeTitles');
 
 export const getUniqueFilmSimulations = async () =>
   safelyQueryPhotos(() => sql`
@@ -369,8 +446,6 @@ export const getPhotos = async (options: GetPhotosOptions = {}) =>
       wheresValues,
       lastValuesIndex,
     } = getWheresFromOptions(options);
-
-    let valuesIndex = lastValuesIndex;
     
     if (wheres) {
       sql.push(wheres);
@@ -382,7 +457,7 @@ export const getPhotos = async (options: GetPhotosOptions = {}) =>
     const {
       limitAndOffset,
       limitAndOffsetValues,
-    } = getLimitAndOffsetFromOptions(options, valuesIndex);
+    } = getLimitAndOffsetFromOptions(options, lastValuesIndex);
 
     // LIMIT + OFFSET
     sql.push(limitAndOffset);
@@ -390,7 +465,11 @@ export const getPhotos = async (options: GetPhotosOptions = {}) =>
 
     return query(sql.join(' '), values)
       .then(({ rows }) => rows.map(parsePhotoFromDb));
-  }, 'getPhotos');
+  },
+  'getPhotos',
+  // Seemingly necessary to pass `options` for expected cache behavior
+  options,
+  );
 
 export const getPhotosNearId = async (
   photoId: string,
@@ -421,7 +500,7 @@ export const getPhotosNearId = async (
         WHERE twi.row_number >= current.row_number - 1
         LIMIT $${valuesIndex++}
       `,
-      [...wheresValues, photoId, limit]
+      [...wheresValues, photoId, limit],
     )
       .then(({ rows }) => {
         const photo = rows.find(({ id }) => id === photoId);
@@ -469,3 +548,39 @@ export const getPhoto = async (
       .then(({ rows }) => rows.map(parsePhotoFromDb))
       .then(photos => photos.length > 0 ? photos[0] : undefined);
   }, 'getPhoto');
+
+// Outdated queries
+
+const outdatedWhereClause =
+  // eslint-disable-next-line quotes
+  `WHERE updated_at < $1 OR (updated_at < $2 AND make = $3)`;
+
+const outdatedValues = [
+  UPDATED_BEFORE_01.toISOString(),
+  UPDATED_BEFORE_02.toISOString(),
+  MAKE_FUJIFILM,
+];
+
+export const getOutdatedPhotos = () => safelyQueryPhotos(
+  () => query(`
+    SELECT * FROM photos
+    ${outdatedWhereClause}
+    ORDER BY created_at DESC
+    LIMIT 1000
+  `,
+  outdatedValues,
+  )
+    .then(({ rows }) => rows.map(parsePhotoFromDb)),
+  'getOutdatedPhotos',
+);
+
+export const getOutdatedPhotosCount = () => safelyQueryPhotos(
+  () => query(`
+    SELECT COUNT(*) FROM photos
+    ${outdatedWhereClause}
+  `,
+  outdatedValues,
+  )
+    .then(({ rows }) => parseInt(rows[0].count, 10)),
+  'getOutdatedPhotosCount',
+);

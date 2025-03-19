@@ -1,16 +1,17 @@
 'use client';
 
-import { OUTDATED_THRESHOLD, Photo } from '@/photo';
+import { Photo } from '@/photo';
 import AdminPhotosTable from '@/admin/AdminPhotosTable';
 import LoaderButton from '@/components/primitives/LoaderButton';
-import IconGrSync from '@/site/IconGrSync';
+import IconGrSync from '@/components/icons/IconGrSync';
 import Note from '@/components/Note';
 import AdminChildPage from '@/components/AdminChildPage';
-import { PATH_ADMIN_PHOTOS } from '@/site/paths';
+import { PATH_ADMIN_PHOTOS } from '@/app/paths';
 import { useState } from 'react';
 import { syncPhotosAction } from '@/photo/actions';
 import { useRouter } from 'next/navigation';
 import ResponsiveText from '@/components/primitives/ResponsiveText';
+import { LiaBroomSolid } from 'react-icons/lia';
 
 const UPDATE_BATCH_SIZE_MAX = 4;
 
@@ -48,7 +49,7 @@ export default function AdminOutdatedClient({
         onClick={async () => {
           if (window.confirm(
             // eslint-disable-next-line max-len
-            `Are you sure you want to sync the oldest ${updateBatchSize} photos? This action cannot be undone.`
+            `Are you sure you want to sync the oldest ${updateBatchSize} photos? This action cannot be undone.`,
           )) {
             const photosToSync = photos
               .slice(0, updateBatchSize)
@@ -67,6 +68,7 @@ export default function AdminOutdatedClient({
           }
         }}
         isLoading={arePhotoIdsSyncing}
+        disabled={!updateBatchSize}
       >
         {arePhotoIdsSyncing
           ? 'Syncing'
@@ -76,19 +78,19 @@ export default function AdminOutdatedClient({
       </LoaderButton>}
     >
       <div className="space-y-6">
-        <Note>
+        <Note
+          color="blue"
+          icon={<LiaBroomSolid size={18}/>}
+        >
           <div className="space-y-1.5">
-            {photos.length}
+            <div className="font-bold">
+              {photos.length} outdated
+              {' '}
+              {photos.length === 1 ? 'photo' : 'photos'} found
+            </div>
+            Sync photos to import newer EXIF fields, improve blur data,
             {' '}
-            {photos.length === 1 ? 'photo' : 'photos'}
-            {' ('}last updated before
-            {' '}
-            {new Date(OUTDATED_THRESHOLD).toLocaleDateString()}{')'}
-            {' '}
-            may have: missing EXIF fields, inaccurate blur data,
-            {' '}
-            undesired privacy settings
-            {hasAiTextGeneration && ', missing AI-generated text'}
+            and leverage AI-generated text where possible
           </div>
         </Note>
         <div className="space-y-4">

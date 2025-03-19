@@ -1,15 +1,73 @@
 'use server';
 
 import { runAuthenticatedAdminServerAction } from '@/auth';
-import { testKvConnection } from '@/services/kv';
-import { testOpenAiConnection } from '@/services/openai';
-import { testDatabaseConnection } from '@/services/postgres';
-import { testStorageConnection } from '@/services/storage';
-import { CONFIG_CHECKLIST_STATUS } from '@/site/config';
+import { testRedisConnection } from '@/platforms/redis';
+import { testOpenAiConnection } from '@/platforms/openai';
+import { testDatabaseConnection } from '@/platforms/postgres';
+import { testStorageConnection } from '@/platforms/storage';
+import { APP_CONFIGURATION } from '@/app/config';
+import { getStorageUploadUrlsNoStore } from '@/platforms/storage/cache';
+import { getInsightsIndicatorStatus } from '@/admin/insights/server';
+import {
+  getPhotosMeta,
+  getUniqueTags,
+  getUniqueRecipes,
+} from '@/photo/db/query';
+
+export type AdminData = Awaited<ReturnType<typeof getAdminDataAction>>;
+
+export const getAdminDataAction = async () =>
+  runAuthenticatedAdminServerAction(async () => {
+    const [
+      photosCount,
+      photosCountHidden,
+      uploadsCount,
+      tagsCount,
+      recipesCount,
+      insightsIndicatorStatus,
+    ] = await Promise.all([
+      getPhotosMeta()
+        .then(({ count }) => count)
+        .catch(() => 0),
+      getPhotosMeta({ hidden: 'only' })
+        .then(({ count }) => count)
+        .catch(() => 0),
+      getStorageUploadUrlsNoStore()
+        .then(urls => urls.length)
+        .catch(e => {
+          console.error(`Error getting blob upload urls: ${e}`);
+          return 0;
+        }),
+      getUniqueTags()
+        .then(tags => tags.length)
+        .catch(() => 0),
+      getUniqueRecipes()
+        .then(recipes => recipes.length)
+        .catch(() => 0),
+      getInsightsIndicatorStatus(),
+    ]);
+
+    const photosCountTotal = (
+      photosCount !== undefined &&
+      photosCountHidden !== undefined
+    )
+      ? photosCount + photosCountHidden
+      : undefined;
+
+    return {
+      photosCount,
+      photosCountHidden,
+      photosCountTotal,
+      uploadsCount,
+      tagsCount,
+      recipesCount,
+      insightsIndicatorStatus,
+    };
+  });
 
 const scanForError = (
   shouldCheck: boolean,
-  promise: () => Promise<any>
+  promise: () => Promise<any>,
 ): Promise<string> =>
   shouldCheck
     ? promise()
@@ -22,26 +80,26 @@ export const testConnectionsAction = async () =>
     const {
       hasDatabase,
       hasStorageProvider,
-      hasVercelKv,
+      hasRedisStorage,
       isAiTextGenerationEnabled,
-    } = CONFIG_CHECKLIST_STATUS;
+    } = APP_CONFIGURATION;
 
     const [
       databaseError,
       storageError,
-      kvError,
+      redisError,
       aiError,
     ] = await Promise.all([
       scanForError(hasDatabase, testDatabaseConnection),
       scanForError(hasStorageProvider, testStorageConnection),
-      scanForError(hasVercelKv, testKvConnection),
+      scanForError(hasRedisStorage, testRedisConnection),
       scanForError(isAiTextGenerationEnabled, testOpenAiConnection),
     ]);
 
     return {
       databaseError,
       storageError,
-      kvError,
+      redisError,
       aiError,
     };
   });

@@ -1,21 +1,25 @@
 'use client';
 
+import LinkWithLoader from '@/components/LinkWithLoader';
+import LinkWithStatus from '@/components/LinkWithStatus';
 import Note from '@/components/Note';
 import SiteGrid from '@/components/SiteGrid';
+import Spinner from '@/components/Spinner';
 import {
   PATH_ADMIN_CONFIGURATION,
+  PATH_ADMIN_INSIGHTS,
   checkPathPrefix,
-  isPathAdminConfiguration,
+  isPathAdminInfo,
   isPathTopLevelAdmin,
-} from '@/site/paths';
+} from '@/app/paths';
 import { useAppState } from '@/state/AppState';
 import { clsx } from 'clsx/lite';
 import { differenceInMinutes } from 'date-fns';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { BiCog } from 'react-icons/bi';
 import { FaRegClock } from 'react-icons/fa';
+import AdminAppInfoIcon from './AdminAppInfoIcon';
+import AdminInfoNav from './AdminInfoNav';
 
 // Updates considered recent if they occurred in past 5 minutes
 const areTimesRecent = (dates: Date[]) => dates
@@ -24,6 +28,7 @@ const areTimesRecent = (dates: Date[]) => dates
 export default function AdminNavClient({
   items,
   mostRecentPhotoUpdateTime,
+  includeInsights = true,
 }: {
   items: {
     label: string,
@@ -31,6 +36,7 @@ export default function AdminNavClient({
     count: number,
   }[]
   mostRecentPhotoUpdateTime?: Date
+  includeInsights?: boolean
 }) {
   const pathname = usePathname();
 
@@ -58,48 +64,52 @@ export default function AdminNavClient({
   return (
     <SiteGrid
       contentMain={
-        <div className="space-y-5">
+        <div className="space-y-4">
           <div className={clsx(
-            'flex gap-2 md:gap-4',
-            'border-b border-gray-200 dark:border-gray-800 pb-3',
+            'flex gap-2 pb-3',
+            'border-b border-gray-200 dark:border-gray-800',
           )}>
             <div className={clsx(
-              'flex gap-2 md:gap-4',
-              'flex-grow overflow-x-auto',
+              'flex gap-0.5 md:gap-1.5 -mx-1',
+              'grow overflow-x-auto',
             )}>
               {items.map(({ label, href, count }) =>
-                <Link
+                <LinkWithStatus
                   key={label}
                   href={href}
                   className={clsx(
                     'flex gap-0.5',
                     checkPathPrefix(pathname, href) ? 'font-bold' : 'text-dim',
+                    'px-1 py-0.5 rounded-md',
+                    'hover:text-main',
                   )}
+                  loadingClassName="bg-gray-200/50 dark:bg-gray-700/50"
                   prefetch={false}
                 >
                   <span>{label}</span>
                   {count > 0 &&
                     <span>({count})</span>}
-                </Link>)}
+                </LinkWithStatus>)}
             </div>
-            <Link
-              href={PATH_ADMIN_CONFIGURATION}
-              className={isPathAdminConfiguration(pathname)
+            <LinkWithLoader
+              href={includeInsights
+                ? PATH_ADMIN_INSIGHTS
+                : PATH_ADMIN_CONFIGURATION}
+              className={isPathAdminInfo(pathname)
                 ? 'font-bold'
                 : 'text-dim'}
+              loader={<Spinner className="translate-y-[-0.75px]" />}
             >
-              <BiCog
-                size={18}
-                className="inline-block"
-                aria-label="App Configuration"
-              />
-            </Link>
+              <AdminAppInfoIcon />
+            </LinkWithLoader>
           </div>
           {shouldShowBanner &&
-            <Note icon={<FaRegClock className="flex-shrink-0" />}>
+            <Note icon={<FaRegClock className="shrink-0" />}>
               Photo updates detected—they may take several minutes to show up
               for visitors
             </Note>}
+          {isPathAdminInfo(pathname) &&
+            <AdminInfoNav {...{ includeInsights }} />}
         </div>
       }
     />

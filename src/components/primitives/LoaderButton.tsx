@@ -8,22 +8,26 @@ export default function LoaderButton(props: {
   isLoading?: boolean
   icon?: ReactNode
   spinnerColor?: SpinnerColor
+  spinnerClassName?: string
   styleAs?: 'button' | 'link' | 'link-without-hover'
   hideTextOnMobile?: boolean
   confirmText?: string
   shouldPreventDefault?: boolean
   primary?: boolean
+  hideFocusOutline?: boolean
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
   const {
     children,
     isLoading,
     icon,
     spinnerColor,
+    spinnerClassName,
     styleAs = 'button',
     hideTextOnMobile = true,
     confirmText,
     shouldPreventDefault,
     primary,
+    hideFocusOutline,
     type = 'button',
     onClick,
     disabled,
@@ -42,10 +46,11 @@ export default function LoaderButton(props: {
         }
       }}
       className={clsx(
+        'font-mono',
         ...(styleAs !== 'button'
           ? [
             'link h-4 active:text-medium',
-            'disabled:!bg-transparent',
+            'disabled:bg-transparent!',
           ]
           : ['h-9']
         ),
@@ -53,13 +58,14 @@ export default function LoaderButton(props: {
         styleAs === 'link-without-hover' && 'hover:text-main',
         'inline-flex items-center gap-2 self-start whitespace-nowrap',
         primary && 'primary',
+        hideFocusOutline && 'focus:outline-hidden',
         className,
       )}
       disabled={isLoading || disabled}
     >
       {(icon || isLoading) &&
         <span className={clsx(
-          'min-w-[1.25rem] max-h-5 overflow-hidden',
+          'min-w-[1.25rem] max-h-5',
           styleAs === 'button' ? 'translate-y-[-0.5px]' : 'translate-y-[0.5px]',
           'inline-flex justify-center shrink-0',
         )}>
@@ -67,7 +73,10 @@ export default function LoaderButton(props: {
             ? <Spinner
               size={14}
               color={spinnerColor}
-              className="translate-y-[0.5px]"
+              className={clsx(
+                'translate-y-[1px]',
+                spinnerClassName,
+              )}
             />
             : icon}
         </span>}

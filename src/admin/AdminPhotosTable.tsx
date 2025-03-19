@@ -5,15 +5,16 @@ import AdminTable from './AdminTable';
 import { Fragment } from 'react';
 import PhotoSmall from '@/photo/PhotoSmall';
 import { clsx } from 'clsx/lite';
-import { pathForAdminPhotoEdit, pathForPhoto } from '@/site/paths';
+import { pathForAdminPhotoEdit, pathForPhoto } from '@/app/paths';
 import Link from 'next/link';
-import { AiOutlineEyeInvisible } from 'react-icons/ai';
 import PhotoDate from '@/photo/PhotoDate';
 import EditButton from './EditButton';
 import { useAppState } from '@/state/AppState';
 import { RevalidatePhoto } from '@/photo/InfinitePhotoScroll';
 import PhotoSyncButton from './PhotoSyncButton';
 import DeletePhotoButton from './DeletePhotoButton';
+import { Timezone } from '@/utility/timezone';
+import IconHidden from '@/components/icons/IconHidden';
 
 export default function AdminPhotosTable({
   photos,
@@ -24,6 +25,7 @@ export default function AdminPhotosTable({
   showUpdatedAt,
   canEdit = true,
   canDelete = true,
+  timezone,
 }: {
   photos: Photo[],
   onLastPhotoVisible?: () => void
@@ -33,6 +35,7 @@ export default function AdminPhotosTable({
   showUpdatedAt?: boolean
   canEdit?: boolean
   canDelete?: boolean
+  timezone?: Timezone
 }) {
   const { invalidateSwr } = useAppState();
 
@@ -68,7 +71,7 @@ export default function AdminPhotosTable({
                 {titleForPhoto(photo)}
                 {photo.hidden && <span className="whitespace-nowrap">
                   {' '}
-                  <AiOutlineEyeInvisible
+                  <IconHidden
                     className="inline translate-y-[-0.5px]"
                     size={16}
                   />
@@ -76,7 +79,7 @@ export default function AdminPhotosTable({
               </span>
               {photo.priorityOrder !== null &&
                 <span className={clsx(
-                  'text-xs leading-none px-1.5 py-1 rounded-sm',
+                  'text-xs leading-none px-1.5 py-1 rounded-xs',
                   'dark:text-gray-300',
                   'bg-gray-100 dark:bg-gray-800',
                 )}>
@@ -90,12 +93,13 @@ export default function AdminPhotosTable({
               <PhotoDate {...{
                 photo,
                 dateType: showUpdatedAt ? 'updatedAt' : 'createdAt',
+                timezone,
               }} />
             </div>
           </div>
           <div className={clsx(
             'flex flex-nowrap',
-            'gap-2 sm:gap-3 items-center',
+            'gap-2 items-center',
           )}>
             {canEdit &&
               <EditButton path={pathForAdminPhotoEdit(photo)} />}

@@ -4,11 +4,11 @@ import { clsx } from 'clsx/lite';
 import {
   Photo,
   PhotoDateRange,
-  PhotoSetAttributes,
   dateRangeForPhotos,
   titleForPhoto,
 } from '.';
-import ShareButton from '@/components/ShareButton';
+import { PhotoSetCategory } from '../category';
+import ShareButton from '@/share/ShareButton';
 import AnimateItems from '@/components/AnimateItems';
 import { ReactNode } from 'react';
 import DivDebugBaselineGrid from '@/components/DivDebugBaselineGrid';
@@ -16,32 +16,30 @@ import PhotoPrevNext from './PhotoPrevNext';
 import PhotoLink from './PhotoLink';
 import ResponsiveText from '@/components/primitives/ResponsiveText';
 import { useAppState } from '@/state/AppState';
+import { GRID_GAP_CLASSNAME } from '@/components';
 
 export default function PhotoHeader({
-  tag,
-  camera,
-  simulation,
-  focal,
   photos,
   selectedPhoto,
   entity,
   entityVerb = 'PHOTO',
   entityDescription,
-  sharePath,
   indexNumber,
   count,
   dateRange,
+  includeShareButton,
+  ...categories
 }: {
   photos: Photo[]
   selectedPhoto?: Photo
   entity?: ReactNode
   entityVerb?: string
   entityDescription?: string
-  sharePath?: string
   indexNumber?: number
   count?: number
   dateRange?: PhotoDateRange
-} & PhotoSetAttributes) {
+  includeShareButton?: boolean
+} & PhotoSetCategory) {
   const { isGridHighDensity } = useAppState();
 
   const { start, end } = dateRangeForPhotos(photos, dateRange);
@@ -60,28 +58,25 @@ export default function PhotoHeader({
       ? 'photo-detail-with-entity'
       : 'photo-detail';
 
-  const renderPrevNext = () =>
+  const renderPrevNext =
     <PhotoPrevNext {...{
       photo: selectedPhoto,
       photos,
-      tag,
-      camera,
-      simulation,
-      focal,
+      ...categories,
     }} />;
 
-  const renderDateRange = () =>
+  const renderDateRange =
     <span className="text-dim uppercase text-right">
       {start === end
         ? start
-        : <>{end}<br />– {start}</>}
+        : <>{end}<br />&ndash; {start}</>}
     </span>;
 
-  const renderContentA = () => entity ?? (
+  const renderContentA = entity ?? (
     selectedPhoto !== undefined &&
       <PhotoLink
         photo={selectedPhoto}
-        className="uppercase font-bold text-ellipsis truncate"
+        className="uppercase font-bold truncate"
       >
         {titleForPhoto(selectedPhoto, true)}
       </PhotoLink>);
@@ -94,7 +89,9 @@ export default function PhotoHeader({
       items={[<DivDebugBaselineGrid
         key="PhotosHeader"
         className={clsx(
-          'grid gap-0.5 sm:gap-1 items-start',
+          'grid',
+          GRID_GAP_CLASSNAME,
+          'items-start',
           'grid-cols-4',
           isGridHighDensity
             ? 'lg:grid-cols-6'
@@ -112,17 +109,22 @@ export default function PhotoHeader({
                 ? 'col-span-2 sm:col-span-1 lg:col-span-2'
                 : 'col-span-2 sm:col-span-1'
               : isGridHighDensity
-                ? 'col-span-3 sm:col-span-3 lg:col-span-5'
-                : 'col-span-3 md:col-span-2 lg:col-span-3',
+                ? 'col-span-3 sm:col-span-3 lg:col-span-5 w-[110%] xl:w-full'
+                : 'col-span-3 md:col-span-2 lg:col-span-3 w-[110%] xl:w-full',
         )}>
           {headerType === 'photo-detail-with-entity'
-            ? renderContentA()
-            : <h1>{renderContentA()}</h1>}
+            ? renderContentA
+            // Necessary for title truncation
+            : <h1 className={clsx(
+              'w-full truncate',
+              headerType !== 'photo-detail' && 'pr-1 sm:pr-2',
+            )}>
+              {renderContentA}
+            </h1>}
         </div>
         {/* Content B: Filter Set Meta or Photo Pagination */}
         <div className={clsx(
-          'inline-flex',
-          'gap-2 self-start',
+          'inline-flex gap-2 self-start',
           'uppercase text-dim',
           headerType === 'photo-set'
             ? isGridHighDensity
@@ -132,18 +134,22 @@ export default function PhotoHeader({
               ? isGridHighDensity
                 ? 'sm:col-span-2 lg:col-span-3'
                 : 'sm:col-span-2 md:col-span-1 lg:col-span-2'
-              : 'hidden',
+              : 'hidden!',
         )}>
           {entity && <>
             {headerType === 'photo-set'
               ? <>
                 {entityDescription}
-                {sharePath &&
-                  <ShareButton
-                    className="translate-y-[1.5px]"
-                    path={sharePath}
-                    dim
-                  />}
+                {includeShareButton &&
+                  <ShareButton {...{
+                    photos,
+                    ...categories,
+                    count,
+                    dateRange,
+                    className: 'translate-y-[1.5px]',
+                    prefetch: true,
+                    dim: true,
+                  }} />}
               </>
               : <ResponsiveText shortText={paginationLabel}>
                 {entityVerb} {paginationLabel}
@@ -158,8 +164,8 @@ export default function PhotoHeader({
           'justify-end',
         )}>
           {selectedPhoto
-            ? renderPrevNext()
-            : renderDateRange()}
+            ? renderPrevNext
+            : renderDateRange}
         </div>
       </DivDebugBaselineGrid>,
       ]}

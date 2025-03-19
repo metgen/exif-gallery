@@ -10,7 +10,7 @@ export default function HeaderList({
 }: {
   title?: string,
   className?: string,
-  icon?: JSX.Element,
+  icon?: ReactNode,
   items: ReactNode[]
 }) {
   return (
@@ -33,7 +33,7 @@ export default function HeaderList({
           )}
         >
           {icon &&
-            <span className="w-[1rem]">
+            <span className="text-icon w-[1rem]">
               {icon}
             </span>}
           {title}

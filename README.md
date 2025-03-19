@@ -2,7 +2,7 @@
 Это галлерея для момих мобильных фотографий
 
 Сайт проекта - [gallery.metalnikovg.ru](https://gallery.metalnikovg.ru)
-![screenshot-gallery-metalnikovg-ru-grid-1716448788082](https://github.com/metgen/exif-gallery/assets/41876289/f2fdd4d3-cce3-4084-8a68-f72818446142)
+![exif-gallery-metalnikovg-ru-grid](https://raw.githubusercontent.com/metgen/exif-gallery/main/readme/exif-gallery.png)
 
 ## Технический стек
 - В качестве хостинга используется [Vercel](https://vercel.com)
